@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Smart Claims – Callback</title>
+  <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.min.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; padding: 20px; }
+    h1 { margin-bottom: 8px; }
+    .section { margin: 16px 0; padding: 12px; border: 1px solid #ddd; border-left: 4px solid #999; background:#fafafa }
+    .ok { border-left-color:#28a745; background:#f4fbf5 }
+    .warn { border-left-color:#ffc107; background:#fff9e6 }
+    .err { border-left-color:#dc3545; background:#fff4f4 }
+    pre { margin: 8px 0 0; overflow:auto; }
+    small.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+  </style>
+</head>
+<body>
+  <h1>Smart Claims</h1>
+  <div class="section"><small class="mono">Completing SMART sign-in…</small></div>
+  <div id="out"></div>
+
+  <script>
+    const out = document.getElementById("out");
+    const add = (cls, title, obj) => {
+      const d = document.createElement("div");
+      d.className = `section ${cls||""}`;
+      d.innerHTML = `<strong>${title}</strong>${obj ? `<pre>${JSON.stringify(obj, null, 2)}</pre>` : ""}`;
+      out.appendChild(d);
+    };
+
+    (async () => {
+      try {
+        const client = await FHIR.oauth2.ready(); // completes code+PKCE exchange
+
+        // Basic connection info (do NOT print the raw token)
+        const token = client.state?.tokenResponse || {};
+        add("ok", "SMART connection established", {
+          serverUrl: client.state?.serverUrl,
+          tokenType: token.token_type,
+          scope: token.scope,
+          expires_in: token.expires_in
+        });
+
+        // Server capabilities (nice sanity check)
+        try {
+          const meta = await client.request("metadata");
+          add("", "FHIR server metadata (summary)", {
+            fhirVersion: meta.fhirVersion,
+            software: meta.software?.name,
+            status: meta.status
+          });
+        } catch (e) {
+          add("warn", "Could not fetch metadata", { error: e.message });
+        }
+
+        // Resolve patient context
+        let patientId = client.patient && client.patient.id ? client.patient.id : null;
+        if (!patientId) {
+          // Fallback: grab any patient (for standalone tests)
+          try {
+            const bundle = await client.request("Patient?_count=1");
+            patientId = bundle.entry?.[0]?.resource?.id || null;
+            add("warn", "No launch patient context; using first available patient", { patientId });
+          } catch (e) {
+            add("err", "Failed to resolve a patient", { error: e.message });
+          }
+        }
+
+        // Patient details
+        if (patientId) {
+          try {
+            const p = await client.request(`Patient/${patientId}`);
+            add("ok", "Patient", {
+              id: p.id,
+              name: (p.name?.[0]?.given?.join(" ") || "") + " " + (p.name?.[0]?.family || ""),
+              birthDate: p.birthDate,
+              gender: p.gender
+            });
+          } catch (e) {
+            add("warn", "Patient read failed", { error: e.message, patientId });
+          }
+        }
+
+        // Clinical context (conditions & observations) — helpful for your UI
+        if (patientId) {
+          try {
+            const cond = await client.request(`Condition?patient=${patientId}&_count=20`);
+            add("", "Conditions (up to 20)", cond.entry?.map(e => ({
+              id: e.resource.id,
+              code: e.resource.code?.coding?.[0]?.code,
+              display: e.resource.code?.coding?.[0]?.display || e.resource.code?.text,
+              clinicalStatus: e.resource.clinicalStatus?.coding?.[0]?.display
+            })) || []);
+          } catch (e) {
+            add("warn", "Conditions fetch failed", { error: e.message });
+          }
+
+          try {
+            const obs = await client.request(`Observation?patient=${patientId}&_count=20`);
+            add("", "Observations (up to 20)", obs.entry?.map(e => {
+              const o = e.resource;
+              const value =
+                (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : null) ||
+                o.valueString ||
+                (o.component?.length ? o.component.map(c =>
+                  `${c.code?.coding?.[0]?.display || c.code?.text}: ${c.valueQuantity?.value} ${c.valueQuantity?.unit}`
+                ).join(", ") : "No value recorded");
+              return {
+                id: o.id,
+                code: o.code?.coding?.[0]?.code,
+                display: o.code?.coding?.[0]?.display || o.code?.text,
+                value,
+                effectiveDateTime: o.effectiveDateTime,
+                status: o.status
+              };
+            }) || []);
+          } catch (e) {
+            add("warn", "Observations fetch failed", { error: e.message });
+          }
+        }
+
+        // Claims/Billing context (may or may not be populated in a given sandbox tenant)
+        if (patientId) {
+          const claimsEndpoints = [
+            `Coverage?beneficiary=${patientId}&_count=5`,
+            `ExplanationOfBenefit?patient=${patientId}&_count=5`,
+            `Claim?patient=${patientId}&_count=5`
+          ];
+          for (const path of claimsEndpoints) {
+            try {
+              const r = await client.request(path);
+              const items = (r.entry || []).map(e => e.resource);
+              add("", `Claims endpoint: ${path}`, items.slice(0, 5));
+            } catch (e) {
+              add("warn", `Claims endpoint failed: ${path}`, { error: e.message });
+            }
+          }
+        }
+
+      } catch (e) {
+        add("err", "SMART connection failed", { error: e.message });
+      }
+    })();
+  </script>
+</body>
+</html>
