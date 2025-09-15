@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Launching Smart Claims</title>
+  <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.min.js"></script>
+</head>
+<body>
+  <h1>Launching Smart Claims…</h1>
+  <div id="status">Preparing SMART launch…</div>
+  <script>
+    const p = new URLSearchParams(location.search);
+    const iss = p.get("iss");
+    const launch = p.get("launch");
+    if (!iss || !launch) {
+      document.getElementById("status").textContent =
+        "Missing 'iss' or 'launch'. Launch this app from the EHR.";
+    } else {
+      document.getElementById("status").textContent = "Redirecting to authorize…";
+      FHIR.oauth2.authorize({
+        clientId: "YOUR_CERNER_CLIENT_ID",
+        scope: "launch patient/*.read openid profile fhirUser patient/Coverage.read patient/ExplanationOfBenefit.read",
+        redirectUri: "https://drlalithapranathi.github.io/cerner-smart-claims/index.html",
+        iss, launch,
+        completeInTarget: true
+      });
+    }
+  </script>
+</body>
+</html>
