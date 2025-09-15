@@ -17,13 +17,15 @@
         "Missing 'iss' or 'launch'. Launch this app from the EHR.";
     } else {
       document.getElementById("status").textContent = "Redirecting to authorize…";
-      FHIR.oauth2.authorize({
-        clientId: "YOUR_CERNER_CLIENT_ID",
-        scope: "launch patient/*.read openid profile fhirUser patient/Coverage.read patient/ExplanationOfBenefit.read",
-        redirectUri: "https://drlalithapranathi.github.io/cerner-smart-claims/index.html",
-        iss, launch,
-        completeInTarget: true
-      });
+FHIR.oauth2.authorize({
+  clientId: "93a6b9e2-0ffb-420d-9f63-9c36d2dce02d",  // ← real Client ID
+  redirectUri: "https://drlalithapranathi.github.io/cerner-smart-claims/index.html",
+  scope: "launch patient/*.read openid profile fhirUser patient/Coverage.read patient/ExplanationOfBenefit.read",
+  iss,
+  launch,
+  completeInTarget: true
+});
+
     }
   </script>
 </body>
