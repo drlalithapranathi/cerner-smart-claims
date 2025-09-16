@@ -18,13 +18,42 @@
     } else {
       document.getElementById("status").textContent = "Redirecting to authorize…";
 FHIR.oauth2.authorize({
-  clientId: "93a6b9e2-0ffb-420d-9f63-9c36d2dce02d",  // ← real Client ID
+  clientId: "93a6b9e2-0ffb-420d-9f63-9c36d2dce02d",
   redirectUri: "https://drlalithapranathi.github.io/cerner-smart-claims/index.html",
-  scope: "launch patient/*.read openid profile fhirUser patient/Coverage.read patient/ExplanationOfBenefit.read",
   iss,
   launch,
-  completeInTarget: true
+  completeInTarget: true,
+  scope: `
+    launch launch/patient openid profile fhirUser
+    patient/Account.read
+    patient/Appointment.read patient/Appointment.write
+    patient/Basic.write
+    patient/Binary.read
+    patient/CarePlan.read
+    patient/CareTeam.read
+    patient/ChargeItem.read patient/ChargeItem.write
+    patient/Condition.read patient/Condition.write
+    patient/Coverage.read patient/Coverage.write
+    patient/DiagnosticReport.read patient/DiagnosticReport.write
+    patient/DocumentReference.read patient/DocumentReference.write
+    patient/Encounter.read patient/Encounter.write
+    patient/InsurancePlan.read
+    patient/Location.read
+    patient/Media.read
+    patient/MedicationAdministration.read
+    patient/MedicationDispense.read
+    patient/MedicationRequest.read patient/MedicationRequest.write
+    patient/Observation.read patient/Observation.write
+    patient/Organization.read patient/Organization.write
+    patient/Patient.read patient/Patient.write
+    patient/Person.read
+    patient/Practitioner.read patient/Practitioner.write
+    patient/Procedure.read patient/Procedure.write
+    patient/Provenance.read patient/Provenance.write
+    patient/ServiceRequest.read
+  `.replace(/\s+/g, ' ') // compress whitespace
 });
+
 
     }
   </script>
