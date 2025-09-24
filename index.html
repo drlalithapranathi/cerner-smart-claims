@@ -255,10 +255,10 @@
           }
         }
 
-        // Get observations from the last encounter
+        // Get observations from the last encounter (FIXED)
         if (lastEncounter) {
           try {
-            const encounterObs = await client.request(`Observation?encounter=${lastEncounter.id}&_count=50`);
+            const encounterObs = await client.request(`Observation?patient=${patientId}&encounter=${lastEncounter.id}&_count=50`);
             add("highlight", `Observations from Last Encounter (${lastEncounter.id})`, encounterObs.entry?.map(e => {
               const o = e.resource;
               const value =
