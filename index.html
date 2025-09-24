@@ -11,6 +11,8 @@
     .ok { border-left-color:#28a745; background:#f4fbf5 }
     .warn { border-left-color:#ffc107; background:#fff9e6 }
     .err { border-left-color:#dc3545; background:#fff4f4 }
+    .highlight { border-left-color:#007bff; background:#f0f8ff }
+    .radiology { border-left-color:#6f42c1; background:#f8f7ff }
     pre { margin: 8px 0 0; overflow:auto; }
     small.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
   </style>
@@ -82,6 +84,204 @@
           }
         }
 
+        // Get last encounter details
+        let lastEncounter = null;
+        if (patientId) {
+          try {
+            const encounters = await client.request(`Encounter?patient=${patientId}&_sort=-date&_count=1`);
+            if (encounters.entry && encounters.entry.length > 0) {
+              lastEncounter = encounters.entry[0].resource;
+              add("highlight", "Last Encounter Details", {
+                id: lastEncounter.id,
+                status: lastEncounter.status,
+                class: lastEncounter.class?.display || lastEncounter.class?.code,
+                type: lastEncounter.type?.map(t => t.coding?.[0]?.display || t.text).join(", "),
+                period: {
+                  start: lastEncounter.period?.start,
+                  end: lastEncounter.period?.end
+                },
+                location: lastEncounter.location?.map(loc => ({
+                  display: loc.location?.display,
+                  status: loc.status
+                })) || [],
+                reasonCode: lastEncounter.reasonCode?.map(r => 
+                  r.coding?.[0]?.display || r.text
+                ) || [],
+                serviceProvider: lastEncounter.serviceProvider?.display
+              });
+            } else {
+              add("warn", "No encounters found for patient", { patientId });
+            }
+          } catch (e) {
+            add("warn", "Encounters fetch failed", { error: e.message });
+          }
+        }
+
+        // Get radiology orders (ServiceRequest)
+        if (patientId) {
+          try {
+            const radiologyOrders = await client.request(`ServiceRequest?patient=${patientId}&category=108252007&_count=20`);
+            add("radiology", "Radiology Orders (ServiceRequest)", radiologyOrders.entry?.map(e => {
+              const sr = e.resource;
+              return {
+                id: sr.id,
+                status: sr.status,
+                intent: sr.intent,
+                priority: sr.priority,
+                code: sr.code?.coding?.[0]?.display || sr.code?.text,
+                subject: sr.subject?.reference,
+                encounter: sr.encounter?.reference,
+                authoredOn: sr.authoredOn,
+                requester: sr.requester?.display,
+                reasonCode: sr.reasonCode?.map(r => r.coding?.[0]?.display || r.text) || [],
+                bodySite: sr.bodySite?.map(bs => bs.coding?.[0]?.display || bs.text) || [],
+                note: sr.note?.map(n => n.text) || []
+              };
+            }) || []);
+          } catch (e) {
+            add("warn", "Radiology orders fetch failed", { error: e.message });
+          }
+
+          // Also try without category filter in case the specific SNOMED code isn't used
+          try {
+            const allServiceRequests = await client.request(`ServiceRequest?patient=${patientId}&_count=20`);
+            const radiologyLikeOrders = allServiceRequests.entry?.filter(e => {
+              const code = e.resource.code?.coding?.[0]?.display || e.resource.code?.text || "";
+              return code.toLowerCase().includes("radiology") || 
+                     code.toLowerCase().includes("imaging") || 
+                     code.toLowerCase().includes("x-ray") ||
+                     code.toLowerCase().includes("ct") ||
+                     code.toLowerCase().includes("mri") ||
+                     code.toLowerCase().includes("ultrasound");
+            }).map(e => {
+              const sr = e.resource;
+              return {
+                id: sr.id,
+                status: sr.status,
+                intent: sr.intent,
+                priority: sr.priority,
+                code: sr.code?.coding?.[0]?.display || sr.code?.text,
+                subject: sr.subject?.reference,
+                encounter: sr.encounter?.reference,
+                authoredOn: sr.authoredOn,
+                requester: sr.requester?.display,
+                reasonCode: sr.reasonCode?.map(r => r.coding?.[0]?.display || r.text) || [],
+                bodySite: sr.bodySite?.map(bs => bs.coding?.[0]?.display || bs.text) || [],
+                note: sr.note?.map(n => n.text) || []
+              };
+            }) || [];
+            
+            if (radiologyLikeOrders.length > 0) {
+              add("radiology", "All Service Requests (Imaging-related filtered)", radiologyLikeOrders);
+            }
+          } catch (e) {
+            add("warn", "All service requests fetch failed", { error: e.message });
+          }
+        }
+
+        // Get radiology reports (DiagnosticReport)
+        if (patientId) {
+          try {
+            const radiologyReports = await client.request(`DiagnosticReport?patient=${patientId}&category=394914008&_count=20`);
+            add("radiology", "Radiology Reports (DiagnosticReport)", radiologyReports.entry?.map(e => {
+              const dr = e.resource;
+              return {
+                id: dr.id,
+                status: dr.status,
+                category: dr.category?.map(cat => cat.coding?.[0]?.display || cat.text) || [],
+                code: dr.code?.coding?.[0]?.display || dr.code?.text,
+                subject: dr.subject?.reference,
+                encounter: dr.encounter?.reference,
+                effectiveDateTime: dr.effectiveDateTime,
+                issued: dr.issued,
+                performer: dr.performer?.map(p => p.display) || [],
+                resultsInterpreter: dr.resultsInterpreter?.map(ri => ri.display) || [],
+                imagingStudy: dr.imagingStudy?.map(is => is.reference) || [],
+                conclusion: dr.conclusion,
+                conclusionCode: dr.conclusionCode?.map(cc => cc.coding?.[0]?.display || cc.text) || [],
+                presentedForm: dr.presentedForm?.map(pf => ({
+                  contentType: pf.contentType,
+                  title: pf.title,
+                  creation: pf.creation
+                })) || []
+              };
+            }) || []);
+          } catch (e) {
+            add("warn", "Radiology reports fetch failed", { error: e.message });
+          }
+
+          // Also try without category filter
+          try {
+            const allDiagnosticReports = await client.request(`DiagnosticReport?patient=${patientId}&_count=20`);
+            const radiologyLikeReports = allDiagnosticReports.entry?.filter(e => {
+              const category = e.resource.category?.map(cat => cat.coding?.[0]?.display || cat.text).join(" ").toLowerCase() || "";
+              const code = e.resource.code?.coding?.[0]?.display || e.resource.code?.text || "";
+              return category.includes("radiology") || category.includes("imaging") ||
+                     code.toLowerCase().includes("radiology") || 
+                     code.toLowerCase().includes("imaging") || 
+                     code.toLowerCase().includes("x-ray") ||
+                     code.toLowerCase().includes("ct") ||
+                     code.toLowerCase().includes("mri") ||
+                     code.toLowerCase().includes("ultrasound");
+            }).map(e => {
+              const dr = e.resource;
+              return {
+                id: dr.id,
+                status: dr.status,
+                category: dr.category?.map(cat => cat.coding?.[0]?.display || cat.text) || [],
+                code: dr.code?.coding?.[0]?.display || dr.code?.text,
+                subject: dr.subject?.reference,
+                encounter: dr.encounter?.reference,
+                effectiveDateTime: dr.effectiveDateTime,
+                issued: dr.issued,
+                performer: dr.performer?.map(p => p.display) || [],
+                resultsInterpreter: dr.resultsInterpreter?.map(ri => ri.display) || [],
+                imagingStudy: dr.imagingStudy?.map(is => is.reference) || [],
+                conclusion: dr.conclusion,
+                conclusionCode: dr.conclusionCode?.map(cc => cc.coding?.[0]?.display || cc.text) || [],
+                presentedForm: dr.presentedForm?.map(pf => ({
+                  contentType: pf.contentType,
+                  title: pf.title,
+                  creation: pf.creation
+                })) || []
+              };
+            }) || [];
+            
+            if (radiologyLikeReports.length > 0) {
+              add("radiology", "All Diagnostic Reports (Imaging-related filtered)", radiologyLikeReports);
+            }
+          } catch (e) {
+            add("warn", "All diagnostic reports fetch failed", { error: e.message });
+          }
+        }
+
+        // Get observations from the last encounter
+        if (lastEncounter) {
+          try {
+            const encounterObs = await client.request(`Observation?encounter=${lastEncounter.id}&_count=50`);
+            add("highlight", `Observations from Last Encounter (${lastEncounter.id})`, encounterObs.entry?.map(e => {
+              const o = e.resource;
+              const value =
+                (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : null) ||
+                o.valueString ||
+                (o.component?.length ? o.component.map(c =>
+                  `${c.code?.coding?.[0]?.display || c.code?.text}: ${c.valueQuantity?.value} ${c.valueQuantity?.unit}`
+                ).join(", ") : "No value recorded");
+              return {
+                id: o.id,
+                code: o.code?.coding?.[0]?.code,
+                display: o.code?.coding?.[0]?.display || o.code?.text,
+                value,
+                effectiveDateTime: o.effectiveDateTime,
+                status: o.status,
+                encounter: o.encounter?.reference
+              };
+            }) || []);
+          } catch (e) {
+            add("warn", "Encounter observations fetch failed", { error: e.message });
+          }
+        }
+
         // Clinical context (conditions & observations) — helpful for your UI
         if (patientId) {
           try {
@@ -98,7 +298,7 @@
 
           try {
             const obs = await client.request(`Observation?patient=${patientId}&_count=20`);
-            add("", "Observations (up to 20)", obs.entry?.map(e => {
+            add("", "All Recent Observations (up to 20)", obs.entry?.map(e => {
               const o = e.resource;
               const value =
                 (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : null) ||
@@ -123,7 +323,7 @@
         // Claims/Billing context (may or may not be populated in a given sandbox tenant)
         if (patientId) {
           const claimsEndpoints = [
-            `Coverage?beneficiary=${patientId}&_count=5`,
+            `Coverage?patient=${patientId}&_count=5`,
             `ExplanationOfBenefit?patient=${patientId}&_count=5`,
             `Claim?patient=${patientId}&_count=5`
           ];
