@@ -132,6 +132,17 @@
     window.addEventListener("error", e=>addBadge(`JS: ${e.message}`,"err"));
     window.addEventListener("unhandledrejection", e=>addBadge(`Promise: ${(e.reason && (e.reason.message||e.reason))||e}`,"err"));
 
+    // ---- date helpers for observation window ----
+    function toIso(dt) {
+      const d = new Date(dt);
+      // normalize to Z without ms
+      return new Date(d.getTime() - d.getTimezoneOffset()*60000)
+        .toISOString().replace(/\.\d{3}Z$/, 'Z');
+    }
+    function daysAgo(n){
+      const d = new Date(); d.setDate(d.getDate()-n); return d;
+    }
+
     (async () => {
       const client = await FHIR.oauth2.ready();
       statusEl.textContent = "Connected";
@@ -317,15 +328,45 @@
         ));
       }catch{}
 
-      /* ----- Observations (last encounter) ----- */
-      if(lastEncounter?.id){
-        try{
-          const r = await client.request(`Observation?patient=${patientId}&encounter=${lastEncounter.id}&_count=50`);
-          const rows = (r.entry||[]).map(e=>e.resource).map(o=>{
-            const value = (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : null) ||
-                          o.valueString || "";
-            return { id:o.id, name:o.code?.coding?.[0]?.display||o.code?.text||"", value, when:o.effectiveDateTime||"" };
+      /* ----- Observations (last encounter, time-filtered & sorted) ----- */
+      if (lastEncounter?.id) {
+        try {
+          // derive a time window
+          let start = lastEncounter.period?.start ? new Date(lastEncounter.period.start) : null;
+          let end   = lastEncounter.period?.end   ? new Date(lastEncounter.period.end)   : null;
+
+          // if encounter has no period, use recent window
+          if (!start && !end) {
+            end = new Date();        // now
+            start = daysAgo(7);      // last 7 days (adjust if you want)
+          } else {
+            if (start && !end) end = new Date();                              // from start → now
+            if (!start && end) start = new Date(end.getTime() - 7*24*60*60*1000); // rare
+          }
+
+          const params = new URLSearchParams({
+            patient: String(patientId),
+            encounter: String(lastEncounter.id),
+            _count: '50',
+            _sort: '-date' // newest first by effective[x]
           });
+          if (start) params.append('date', `ge${toIso(start)}`);
+          if (end)   params.append('date', `le${toIso(end)}`);
+
+          const url = `Observation?${params.toString()}`;
+          const r = await client.request(url);
+
+          const rows = (r.entry || []).map(e => e.resource).map(o => {
+            const value = (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : null)
+                       || o.valueString || "";
+            return {
+              id: o.id,
+              name: o.code?.coding?.[0]?.display || o.code?.text || "",
+              value,
+              when: o.effectiveDateTime || o.issued || o.meta?.lastUpdated || ""
+            };
+          });
+
           const c = card("Observations (Last Encounter)","📈","span-6");
           c.appendChild(tbl(
             [
@@ -336,7 +377,15 @@
             ],
             rows
           ));
-        }catch{}
+
+          const hint = document.createElement("div");
+          hint.className = "empty";
+          hint.textContent = `Window: ${start ? start.toLocaleString() : "—"} → ${end ? end.toLocaleString() : "—"}`;
+          c.appendChild(hint);
+        } catch (e) {
+          const c = card("Observations (Last Encounter)","📈","span-6");
+          c.appendChild(kv([["Error", e.message]]));
+        }
       }
 
       /* ----- Coverage ----- */
