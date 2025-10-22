@@ -1,526 +1,526 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Smart Claims – Callback</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta charset="utf-8" />
+  <title>Smart Claims – Callback</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <style>
-    :root{
-      /* Light vibrant theme */
-      --bg1:#f7fbff;
-      --bg2:#eef4ff;
-      --panel:rgba(255,255,255,0.88);
-      --panel-blur:10px;
-      --text:#0b1220;
-      --muted:#657094;
-      --border:#e6ecff;
-      --ok:#12b886;
-      --warn:#f59f00;
-      --err:#e03131;
-      --hdr:#f2f5ff;
-      --accent:#3b82f6;
-      --accent-2:#8b5cf6;
-      --chip:#eef2ff;
-      --shadow:0 18px 40px rgba(30,55,135,.12), 0 4px 14px rgba(30,55,135,.06);
-      --radius:16px;
-    }
+  <style>
+    :root{
+      /* Light vibrant theme */
+      --bg1:#f7fbff;
+      --bg2:#eef4ff;
+      --panel:rgba(255,255,255,0.88);
+      --panel-blur:10px;
+      --text:#0b1220;
+      --muted:#657094;
+      --border:#e6ecff;
+      --ok:#12b886;
+      --warn:#f59f00;
+      --err:#e03131;
+      --hdr:#f2f5ff;
+      --accent:#3b82f6;
+      --accent-2:#8b5cf6;
+      --chip:#eef2ff;
+      --shadow:0 18px 40px rgba(30,55,135,.12), 0 4px 14px rgba(30,55,135,.06);
+      --radius:16px;
+    }
 
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; padding:26px;
-      background:
-        radial-gradient(1200px 800px at -10% -20%, #e9f6ff 10%, transparent 60%),
-        radial-gradient(1200px 800px at 110% -10%, #f0eaff 10%, transparent 60%),
-        linear-gradient(180deg,var(--bg1),var(--bg2));
-      color:var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, Arial, sans-serif;
-    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; padding:26px;
+      background:
+        radial-gradient(1200px 800px at -10% -20%, #e9f6ff 10%, transparent 60%),
+        radial-gradient(1200px 800px at 110% -10%, #f0eaff 10%, transparent 60%),
+        linear-gradient(180deg,var(--bg1),var(--bg2));
+      color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    }
 
-    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
-    .app-title{font-weight:900;letter-spacing:.2px;font-size:clamp(24px,2.6vw,34px);background:linear-gradient(90deg,#0f172a,#334155);-webkit-background-clip:text;background-clip:text;color:transparent}
-    .subtitle{color:var(--muted);font-size:.95rem}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
+    .app-title{font-weight:900;letter-spacing:.2px;font-size:clamp(24px,2.6vw,34px);background:linear-gradient(90deg,#0f172a,#334155);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .subtitle{color:var(--muted);font-size:.95rem}
 
-    .chips{display:flex;flex-wrap:wrap;gap:8px}
-    .badge{
-      display:inline-flex;align-items:center;gap:6px;
-      padding:6px 12px;border-radius:999px;
-      background:var(--chip);border:1px solid var(--border);
-      font-size:.8rem;color:#334155; backdrop-filter:saturate(130%) blur(6px)
-    }
-    .badge.ok{color:var(--ok)} .badge.warn{color:var(--warn)} .badge.err{color:var(--err)}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .badge{
+      display:inline-flex;align-items:center;gap:6px;
+      padding:6px 12px;border-radius:999px;
+      background:var(--chip);border:1px solid var(--border);
+      font-size:.8rem;color:#334155; backdrop-filter:saturate(130%) blur(6px)
+    }
+    .badge.ok{color:var(--ok)} .badge.warn{color:var(--warn)} .badge.err{color:var(--err)}
 
-    .grid{display:grid;gap:18px;grid-template-columns:repeat(12,1fr)}
-    @media (max-width:980px){.grid{grid-template-columns:repeat(6,1fr)}}
-    @media (max-width:640px){.grid{grid-template-columns:repeat(1,1fr)}}
-    .span-4{grid-column:span 4} .span-5{grid-column:span 5}
-    .span-6{grid-column:span 6} .span-7{grid-column:span 7}
-    .span-8{grid-column:span 8} .span-12{grid-column:span 12}
+    .grid{display:grid;gap:18px;grid-template-columns:repeat(12,1fr)}
+    @media (max-width:980px){.grid{grid-template-columns:repeat(6,1fr)}}
+    @media (max-width:640px){.grid{grid-template-columns:repeat(1,1fr)}}
+    .span-4{grid-column:span 4} .span-5{grid-column:span 5}
+    .span-6{grid-column:span 6} .span-7{grid-column:span 7}
+    .span-8{grid-column:span 8} .span-12{grid-column:span 12}
 
-    .card{
-      position:relative;
-      background:var(--panel);
-      border:1px solid var(--border);
-      border-radius:var(--radius);
-      padding:16px 16px 10px;
-      box-shadow:var(--shadow);
-      backdrop-filter: blur(var(--panel-blur));
-      transform: translateZ(0);
-      overflow:hidden;
-    }
-    /* soft corner sheen */
-    .card::after{
-      content:"";
-      position:absolute; inset:-1px -1px auto auto;
-      width:180px; height:180px; border-radius:50%;
-      background: radial-gradient(closest-side,rgba(139,92,246,.10),transparent 80%);
-      filter: blur(8px); pointer-events:none;
-      transform: translate(40%, -40%);
-    }
+    .card{
+      position:relative;
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:16px 16px 10px;
+      box-shadow:var(--shadow);
+      backdrop-filter: blur(var(--panel-blur));
+      transform: translateZ(0);
+      overflow:hidden;
+    }
+    /* soft corner sheen */
+    .card::after{
+      content:"";
+      position:absolute; inset:-1px -1px auto auto;
+      width:180px; height:180px; border-radius:50%;
+      background: radial-gradient(closest-side,rgba(139,92,246,.10),transparent 80%);
+      filter: blur(8px); pointer-events:none;
+      transform: translate(40%, -40%);
+    }
 
-    .card h3{margin:0 0 12px; font-size:1rem; font-weight:800; letter-spacing:.2px; display:flex; align-items:center; gap:10px}
+    .card h3{margin:0 0 12px; font-size:1rem; font-weight:800; letter-spacing:.2px; display:flex; align-items:center; gap:10px}
 
-    .kv{
-      display:grid; grid-template-columns: 140px 1fr;
-      gap:8px 12px; font-size:.95rem; word-break:break-word;
-    }
-    .kv b{ color:#334155; font-weight:700; align-self:start }
-    .kv .mono{ white-space:pre-wrap; word-break:break-all }
+    .kv{
+      display:grid; grid-template-columns: 140px 1fr;
+      gap:8px 12px; font-size:.95rem; word-break:break-word;
+    }
+    .kv b{ color:#334155; font-weight:700; align-self:start }
+    .kv .mono{ white-space:pre-wrap; word-break:break-all }
 
-    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#0f172a}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#0f172a}
 
-    .table-wrap{max-height:420px;overflow:auto;border-radius:12px;border:1px solid var(--border);background:#fff}
-    table{width:100%;border-collapse:collapse;font-size:.92rem}
-    thead th{position:sticky;top:0;background:linear-gradient(180deg,var(--hdr),#ffffff);color:#334155;text-align:left;border-bottom:1px solid var(--border);padding:10px 12px}
-    tbody td{padding:10px 12px;border-bottom:1px solid var(--border)}
-    tbody tr:hover td{background:linear-gradient(90deg,#f7faff,#ffffff)}
+    .table-wrap{max-height:420px;overflow:auto;border-radius:12px;border:1px solid var(--border);background:#fff}
+    table{width:100%;border-collapse:collapse;font-size:.92rem}
+    thead th{position:sticky;top:0;background:linear-gradient(180deg,var(--hdr),#ffffff);color:#334155;text-align:left;border-bottom:1px solid var(--border);padding:10px 12px}
+    tbody td{padding:10px 12px;border-bottom:1px solid var(--border)}
+    tbody tr:hover td{background:linear-gradient(90deg,#f7faff,#ffffff)}
 
-    .muted{color:var(--muted)}
-    .empty{padding:8px 0;color:var(--muted)}
+    .muted{color:var(--muted)}
+    .empty{padding:8px 0;color:var(--muted)}
 
-    a.link{color:var(--accent); text-decoration:none}
-    a.link:hover{text-decoration:underline}
+    a.link{color:var(--accent); text-decoration:none}
+    a.link:hover{text-decoration:underline}
 
-    /* vitals cards */
-    .vital-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-    @media (max-width:980px){.vital-grid{grid-template-columns:repeat(2,1fr)}}
-    @media (max-width:540px){.vital-grid{grid-template-columns:1fr}}
-    .vital{
-      background:#fff;border:1px solid var(--border);border-radius:14px;padding:10px 12px;
-      box-shadow:0 8px 16px rgba(59,130,246,.08);
-    }
-    .v-label{display:flex; align-items:baseline; gap:8px; margin-bottom:4px}
-    .v-name{font-weight:700}
-    .v-now{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#111827}
-    .v-meta{font-size:.8rem;color:var(--muted)}
-    canvas{width:100%; height:80px}
-  </style>
+    /* vitals cards */
+    .vital-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    @media (max-width:980px){.vital-grid{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:540px){.vital-grid{grid-template-columns:1fr}}
+    .vital{
+      background:#fff;border:1px solid var(--border);border-radius:14px;padding:10px 12px;
+      box-shadow:0 8px 16px rgba(59,130,246,.08);
+    }
+    .v-label{display:flex; align-items:baseline; gap:8px; margin-bottom:4px}
+    .v-name{font-weight:700}
+    .v-now{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#111827}
+    .v-meta{font-size:.8rem;color:var(--muted)}
+    canvas{width:100%; height:80px}
+  </style>
 </head>
 <body>
-  <header>
-    <div>
-      <div class="app-title">Smart Claims</div>
-      <div id="status" class="subtitle">Completing SMART sign-in…</div>
-    </div>
-    <div id="badges" class="chips"></div>
-  </header>
+  <header>
+    <div>
+      <div class="app-title">Smart Claims</div>
+      <div id="status" class="subtitle">Completing SMART sign-in…</div>
+    </div>
+    <div id="badges" class="chips"></div>
+  </header>
 
-  <div id="grid" class="grid"></div>
+  <div id="grid" class="grid"></div>
 
-  <script>
-    // ---------- small view helpers ----------
-    const grid = document.getElementById("grid");
-    const badges = document.getElementById("badges");
-    const statusEl = document.getElementById("status");
+  <script>
+    // ---------- small view helpers ----------
+    const grid = document.getElementById("grid");
+    const badges = document.getElementById("badges");
+    const statusEl = document.getElementById("status");
 
-    const addBadge = (text, type="")=>{
-      const b=document.createElement("span"); b.className=`badge ${type}`; b.textContent=text; badges.appendChild(b);
-    };
-    const card = (title, icon, span="span-4")=>{
-      const c=document.createElement("div"); c.className=`card ${span}`;
-      c.innerHTML=`<h3>${icon||""} ${title}</h3>`; grid.appendChild(c); return c;
-    };
-    const kv = pairs=>{
-      const wrap=document.createElement("div"); wrap.className="kv";
-      for(const [k,v] of pairs){
-        const kEl=document.createElement("b"); kEl.textContent=k;
-        const vEl=document.createElement("div"); vEl.innerHTML=v ?? "<span class='muted'>—</span>";
-        wrap.appendChild(kEl); wrap.appendChild(vEl);
-      }
-      return wrap;
-    };
-    const tbl = (columns, rows)=>{
-      if(!rows.length){const d=document.createElement("div"); d.className="empty"; d.textContent="No data"; return d;}
-      const wrap=document.createElement("div"); wrap.className="table-wrap";
-      const t=document.createElement("table"); const thead=document.createElement("thead"), tbody=document.createElement("tbody");
-      thead.innerHTML=`<tr>${columns.map(c=>`<th>${c.label}</th>`).join("")}</tr>`;
-      rows.forEach(r=>{
-        const tr=document.createElement("tr");
-        tr.innerHTML=columns.map(c=>`<td>${(c.render?c.render(r):r[c.key]) ?? ""}</td>`).join("");
-        tbody.appendChild(tr);
-      });
-      t.appendChild(thead); t.appendChild(tbody); wrap.appendChild(t); return wrap;
-    };
-    const d = s => s ? new Date(s).toLocaleString() : "";
+    const addBadge = (text, type="")=>{
+      const b=document.createElement("span"); b.className=`badge ${type}`; b.textContent=text; badges.appendChild(b);
+    };
+    const card = (title, icon, span="span-4")=>{
+      const c=document.createElement("div"); c.className=`card ${span}`;
+      c.innerHTML=`<h3>${icon||""} ${title}</h3>`; grid.appendChild(c); return c;
+    };
+    const kv = pairs=>{
+      const wrap=document.createElement("div"); wrap.className="kv";
+      for(const [k,v] of pairs){
+        const kEl=document.createElement("b"); kEl.textContent=k;
+        const vEl=document.createElement("div"); vEl.innerHTML=v ?? "<span class='muted'>—</span>";
+        wrap.appendChild(kEl); wrap.appendChild(vEl);
+      }
+      return wrap;
+    };
+    const tbl = (columns, rows)=>{
+      if(!rows.length){const d=document.createElement("div"); d.className="empty"; d.textContent="No data"; return d;}
+      const wrap=document.createElement("div"); wrap.className="table-wrap";
+      const t=document.createElement("table"); const thead=document.createElement("thead"), tbody=document.createElement("tbody");
+      thead.innerHTML=`<tr>${columns.map(c=>`<th>${c.label}</th>`).join("")}</tr>`;
+      rows.forEach(r=>{
+        const tr=document.createElement("tr");
+        tr.innerHTML=columns.map(c=>`<td>${(c.render?c.render(r):r[c.key]) ?? ""}</td>`).join("");
+        tbody.appendChild(tr);
+      });
+      t.appendChild(thead); t.appendChild(tbody); wrap.appendChild(t); return wrap;
+    };
+    const d = s => s ? new Date(s).toLocaleString() : "";
 
-    // show silent JS errors in a badge
-    window.addEventListener("error", e=>addBadge(`JS: ${e.message}`,"err"));
-    window.addEventListener("unhandledrejection", e=>addBadge(`Promise: ${(e.reason && (e.reason.message||e.reason))||e}`,"err"));
+    // show silent JS errors in a badge
+    window.addEventListener("error", e=>addBadge(`JS: ${e.message}`,"err"));
+    window.addEventListener("unhandledrejection", e=>addBadge(`Promise: ${(e.reason && (e.reason.message||e.reason))||e}`,"err"));
 
-    // ---- date helpers for observation window ----
-    function toIso(dt) {
-      const d = new Date(dt);
-      // normalize to Z without ms
-      return new Date(d.getTime() - d.getTimezoneOffset()*60000)
-        .toISOString().replace(/\.\d{3}Z$/, 'Z');
-    }
-    function daysAgo(n){
-      const d = new Date(); d.setDate(d.getDate()-n); return d;
-    }
+    // ---- date helpers for observation window ----
+    function toIso(dt) {
+      const d = new Date(dt);
+      // normalize to Z without ms
+      return new Date(d.getTime() - d.getTimezoneOffset()*60000)
+        .toISOString().replace(/\.\d{3}Z$/, 'Z');
+    }
+    function daysAgo(n){
+      const d = new Date(); d.setDate(d.getDate()-n); return d;
+    }
 
-    // ---- charts helpers ----
-    function sparkline(el, labels, values){
-      return new Chart(el.getContext('2d'), {
-        type: 'line',
-        data: { labels, datasets: [{ data: values, tension: 0.35, pointRadius: 0, borderWidth: 2, fill: false }]},
-        options: {
-          responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{display:false}, tooltip:{enabled:true, callbacks:{label:(ctx)=>`${ctx.parsed.y}`}}},
-          scales:{ x:{ display:false }, y:{ display:false } }
-        }
-      });
-    }
+    // ---- charts helpers ----
+    function sparkline(el, labels, values){
+      return new Chart(el.getContext('2d'), {
+        type: 'line',
+        data: { labels, datasets: [{ data: values, tension: 0.35, pointRadius: 0, borderWidth: 2, fill: false }]},
+        options: {
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false}, tooltip:{enabled:true, callbacks:{label:(ctx)=>`${ctx.parsed.y}`}}},
+          scales:{ x:{ display:false }, y:{ display:false } }
+        }
+      });
+    }
 
-    (async () => {
-      const client = await FHIR.oauth2.ready();
-      statusEl.textContent = "Connected";
-      const token = client.state?.tokenResponse || {};
-      addBadge("SMART OK","ok");
-      addBadge(`scope:${String(token.scope||"").split(" ").length}`,"");
-      addBadge(`exp:${Math.round((token.expires_in||0)/60)}m`,"");
+    (async () => {
+      const client = await FHIR.oauth2.ready();
+      statusEl.textContent = "Connected";
+      const token = client.state?.tokenResponse || {};
+      addBadge("SMART OK","ok");
+      addBadge(`scope:${String(token.scope||"").split(" ").length}`,"");
+      addBadge(`exp:${Math.round((token.expires_in||0)/60)}m`,"");
 
-      /* ----- Server Info ----- */
-      try{
-        const meta = await client.request("metadata");
-        const serverUrl = (client.state?.serverUrl || "").replace(/\/$/,"");
-        const c = card("Server Info","🛰️","span-4");
-        c.appendChild(kv([
-          ["FHIR Version", `<span class="mono">${meta.fhirVersion || "4.x"}</span>`],
-          ["Server", serverUrl ? `<a href="${serverUrl}" target="_blank" rel="noopener" class="mono link">${serverUrl}</a>` : "—"],
-          ["Status", meta.status || "unknown"]
-        ]));
-      }catch{
-        addBadge("Server metadata failed","warn");
-      }
+      /* ----- Server Info ----- */
+      try{
+        const meta = await client.request("metadata");
+        const serverUrl = (client.state?.serverUrl || "").replace(/\/$/,"");
+        const c = card("Server Info","🛰️","span-4");
+        c.appendChild(kv([
+          ["FHIR Version", `<span class="mono">${meta.fhirVersion || "4.x"}</span>`],
+          ["Server", serverUrl ? `<a href="${serverUrl}" target="_blank" rel="noopener" class="mono link">${serverUrl}</a>` : "—"],
+          ["Status", meta.status || "unknown"]
+        ]));
+      }catch{
+        addBadge("Server metadata failed","warn");
+      }
 
-      /* ----- Patient ----- */
-      let patientId = client.patient?.id || null;
-      if(!patientId){
-        try{
-          const b = await client.request("Patient?_count=1");
-          patientId = b.entry?.[0]?.resource?.id || null;
-          addBadge("No launch context → using first patient","warn");
-        }catch{ addBadge("Patient lookup failed","err"); }
-      }
+      /* ----- Patient ----- */
+      let patientId = client.patient?.id || null;
+      if(!patientId){
+        try{
+          const b = await client.request("Patient?_count=1");
+          patientId = b.entry?.[0]?.resource?.id || null;
+          addBadge("No launch context → using first patient","warn");
+        }catch{ addBadge("Patient lookup failed","err"); }
+      }
 
-      if(patientId){
-        try{
-          const p = await client.request(`Patient/${patientId}`);
-          const name = `${(p.name?.[0]?.given||[]).join(" ")} ${p.name?.[0]?.family||""}`.trim();
-	     const c = card("Patient","👤","span-4");
-          c.appendChild(kv([
-            ["ID", `<span class="mono">Patient/${p.id}</span>`],
-            ["Name", name || "—"],
-            ["DOB", p.birthDate || "—"],
-            ["Gender", p.gender || "—"],
-          ]));
-        }catch{ addBadge("Patient read failed","err"); }
-      }
+      if(patientId){
+        try{
+          const p = await client.request(`Patient/${patientId}`);
+          const name = `${(p.name?.[0]?.given||[]).join(" ")} ${p.name?.[0]?.family||""}`.trim();
+          const c = card("Patient","👤","span-4");
+          c.appendChild(kv([
+            ["ID", `<span class="mono">Patient/${p.id}</span>`],
+            ["Name", name || "—"],
+            ["DOB", p.birthDate || "—"],
+            ["Gender", p.gender || "—"],
+          ]));
+        }catch{ addBadge("Patient read failed","err"); }
+      }
 
-      /* ----- Last Encounter ----- */
-      let lastEncounter=null;
-      try{
-        const encs = await client.request(`Encounter?patient=${patientId}&_sort=-date&_count=1`);
-        if(encs.entry?.length){
-          lastEncounter = encs.entry[0].resource;
-          const c = card("Last Encounter","🏥","span-4");
-          c.appendChild(kv([
-            ["ID", `<span class="mono">Encounter/${lastEncounter.id}</span>`],
-            ["Status", lastEncounter.status || "—"],
-            ["Class", (lastEncounter.class?.display||lastEncounter.class?.code) || "—"],
-            ["Type", (lastEncounter.type||[]).map(t=>t.coding?.[0]?.display||t.text).filter(Boolean).join(", ") || "—"],
-            ["Start", d(lastEncounter.period?.start) || "—"],
-            ["End", d(lastEncounter.period?.end) || "—"],
-            ["Location", (lastEncounter.location||[]).map(l=>l.location?.display).filter(Boolean).join(", ") || "—"]
-          ]));
-        } else { addBadge("No encounters","warn"); }
-      }catch{ addBadge("Encounter query failed","err"); }
+      /* ----- Last Encounter ----- */
+      let lastEncounter=null;
+      try{
+        const encs = await client.request(`Encounter?patient=${patientId}&_sort=-date&_count=1`);
+        if(encs.entry?.length){
+          lastEncounter = encs.entry[0].resource;
+          const c = card("Last Encounter","🏥","span-4");
+          c.appendChild(kv([
+            ["ID", `<span class="mono">Encounter/${lastEncounter.id}</span>`],
+            ["Status", lastEncounter.status || "—"],
+            ["Class", (lastEncounter.class?.display||lastEncounter.class?.code) || "—"],
+            ["Type", (lastEncounter.type||[]).map(t=>t.coding?.[0]?.display||t.text).filter(Boolean).join(", ") || "—"],
+            ["Start", d(lastEncounter.period?.start) || "—"],
+            ["End", d(lastEncounter.period?.end) || "—"],
+            ["Location", (lastEncounter.location||[]).map(l=>l.location?.display).filter(Boolean).join(", ") || "—"]
+          ]));
+        } else { addBadge("No encounters","warn"); }
+      }catch{ addBadge("Encounter query failed","err"); }
 
-      /* ----- Billing (ChargeItem) ----- */
-      const billingCard = card("Billing (ChargeItem)","💳","span-6");
-      const showOutcome = oo => {
-        const text = (oo?.issue||[]).map(i=>i.details?.text||i.diagnostics||i.code).filter(Boolean).join(" · ");
-        billingCard.appendChild(kv([["Info", `<span class="mono">${text||"No ChargeItems found via encounter or account."}</span>`]]));
-      };
+      /* ----- Billing (ChargeItem) ----- */
+      const billingCard = card("Billing (ChargeItem)","💳","span-6");
+      const showOutcome = oo => {
+        const text = (oo?.issue||[]).map(i=>i.details?.text||i.diagnostics||i.code).filter(Boolean).join(" · ");
+        billingCard.appendChild(kv([["Info", `<span class="mono">${text||"No ChargeItems found via encounter or account."}</span>`]]));
+      };
 
-      try{
-        let chargeItems = [], lastOutcome=null;
+      try{
+        let chargeItems = [], lastOutcome=null;
 
-        if(lastEncounter?.id){
-          try{
-            const r = await client.request(
-              `ChargeItem?context=Encounter/${lastEncounter.id}` +
-              `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
-              { flat:false }
-            );
-            (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
-          }catch(e){ lastOutcome = e?.response; }
-        }
+        if(lastEncounter?.id){
+          try{
+            const r = await client.request(
+              `ChargeItem?context=Encounter/${lastEncounter.id}` +
+              `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
+              { flat:false }
+            );
+            (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
+          }catch(e){ lastOutcome = e?.response; }
+        }
 
-        if(!chargeItems.length && lastEncounter?.id){
-          try{
-            const r = await client.request(
-              `ChargeItem?context=${lastEncounter.id}` +
-              `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
-              { flat:false }
-            );
-            (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
-          }catch(e){ lastOutcome = e?.response; }
-        }
+        if(!chargeItems.length && lastEncounter?.id){
+          try{
+            const r = await client.request(
+              `ChargeItem?context=${lastEncounter.id}` +
+              `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
+              { flat:false }
+            );
+            (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
+          }catch(e){ lastOutcome = e?.response; }
+        }
 
-        if(!chargeItems.length){
-          try{
-            const accts = await client.request(`Account?patient=${patientId}&_elements=id&_count=10`);
-            const ids = (accts.entry||[]).map(e=>e.resource?.id).filter(Boolean);
-            for(const id of ids){
-              const r = await client.request(
-                `ChargeItem?account=Account/${id}` +
-                `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
-                { flat:false }
-              );
-              (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
-            }
-          }catch(e){ lastOutcome = e?.response; }
-        }
+        if(!chargeItems.length){
+          try{
+            const accts = await client.request(`Account?patient=${patientId}&_elements=id&_count=10`);
+            const ids = (accts.entry||[]).map(e=>e.resource?.id).filter(Boolean);
+            for(const id of ids){
+              const r = await client.request(
+                `ChargeItem?account=Account/${id}` +
+                `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
+                { flat:false }
+              );
+              (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
+            }
+          }catch(e){ lastOutcome = e?.response; }
+        }
 
-        if(chargeItems.length){
-          const rows = chargeItems.map(ci=>({
-            id: ci.id,
-            codes: (ci.code?.coding||[]).map(c=>c.display||c.code).filter(Boolean).join(", "),
-            when: ci.occurrenceDateTime || ci.effectiveTime || "",
-            context: ci.context?.reference || "",
-            account: (ci.account||[]).map(a=>a.reference).join(", ")
-          }));
-          billingCard.appendChild(
-            tbl(
-              [
-                {key:"id",label:"ChargeItem",render:r=>`<span class="mono">${r.id}</span>`},
-                {key:"codes",label:"Code(s)"},
-                {key:"when",label:"When",render:r=>d(r.when)},
-                {key:"context",label:"Context"},
-                {key:"account",label:"Account"},
-              ],
-              rows
-            )
-          );
-        } else if (lastOutcome) {
-          try { showOutcome(await lastOutcome.json()); } catch { showOutcome(null); }
-        } else {
-          showOutcome(null);
-        }
-      }catch(e){
-	   billingCard.appendChild(kv([["Error", e.message]]));
-      }
+        if(chargeItems.length){
+          const rows = chargeItems.map(ci=>({
+            id: ci.id,
+            codes: (ci.code?.coding||[]).map(c=>c.display||c.code).filter(Boolean).join(", "),
+            when: ci.occurrenceDateTime || ci.effectiveTime || "",
+            context: ci.context?.reference || "",
+            account: (ci.account||[]).map(a=>a.reference).join(", ")
+          }));
+          billingCard.appendChild(
+            tbl(
+              [
+                {key:"id",label:"ChargeItem",render:r=>`<span class="mono">${r.id}</span>`},
+                {key:"codes",label:"Code(s)"},
+                {key:"when",label:"When",render:r=>d(r.when)},
+                {key:"context",label:"Context"},
+                {key:"account",label:"Account"},
+              ],
+              rows
+            )
+          );
+        } else if (lastOutcome) {
+          try { showOutcome(await lastOutcome.json()); } catch { showOutcome(null); }
+        } else {
+          showOutcome(null);
+        }
+      }catch(e){
+        billingCard.appendChild(kv([["Error", e.message]]));
+      }
 
-      /* ----- Orders (ServiceRequest) ----- */
-      try{
-        const r = await client.request(`ServiceRequest?patient=${patientId}&_count=20`);
-        const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
-          id:x.id, code:x.code?.coding?.[0]?.display||x.code?.text||"",
-          status:x.status||"", intent:x.intent||"", priority:x.priority||"",
-          authoredOn:x.authoredOn||""
-        }));
-        const c = card("Orders (ServiceRequest)","📝","span-6");
-        c.appendChild(tbl(
-          [
-            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
-            {key:"code",label:"Order"},
-            {key:"status",label:"Status"},
-            {key:"intent",label:"Intent"},
-            {key:"priority",label:"Priority"},
-            {key:"authoredOn",label:"Authored",render:r=>d(r.authoredOn)}
-          ],
-          rows
-        ));
-      }catch{}
+      /* ----- Orders (ServiceRequest) ----- */
+      try{
+        const r = await client.request(`ServiceRequest?patient=${patientId}&_count=20`);
+        const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
+          id:x.id, code:x.code?.coding?.[0]?.display||x.code?.text||"",
+          status:x.status||"", intent:x.intent||"", priority:x.priority||"",
+          authoredOn:x.authoredOn||""
+        }));
+        const c = card("Orders (ServiceRequest)","📝","span-6");
+        c.appendChild(tbl(
+          [
+            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+            {key:"code",label:"Order"},
+            {key:"status",label:"Status"},
+            {key:"intent",label:"Intent"},
+            {key:"priority",label:"Priority"},
+            {key:"authoredOn",label:"Authored",render:r=>d(r.authoredOn)}
+          ],
+          rows
+        ));
+      }catch{}
 
-      /* ----- Diagnostic Reports ----- */
-      try{
-        const r = await client.request(`DiagnosticReport?patient=${patientId}&_count=20`);
-        const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
-          id:x.id, code:x.code?.coding?.[0]?.display||x.code?.text||"",
-          status:x.status||"", when:x.issued||x.effectiveDateTime||""
-        }));
-        const c = card("Diagnostic Reports","🧪","span-6");
-        c.appendChild(tbl(
-          [
-            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
-            {key:"code",label:"Report"},
-            {key:"status",label:"Status"},
-            {key:"when",label:"When",render:r=>d(r.when)}
-          ],
-          rows
-        ));
-      }catch{}
+      /* ----- Diagnostic Reports ----- */
+      try{
+        const r = await client.request(`DiagnosticReport?patient=${patientId}&_count=20`);
+        const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
+          id:x.id, code:x.code?.coding?.[0]?.display||x.code?.text||"",
+          status:x.status||"", when:x.issued||x.effectiveDateTime||""
+        }));
+        const c = card("Diagnostic Reports","🧪","span-6");
+        c.appendChild(tbl(
+          [
+            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+            {key:"code",label:"Report"},
+            {key:"status",label:"Status"},
+            {key:"when",label:"When",render:r=>d(r.when)}
+          ],
+          rows
+        ));
+      }catch{}
 
-      /* ----- Observations (last encounter, time-filtered & sorted) ----- */
-      let obsWindow = null, observationsRows = [];
-      if (lastEncounter?.id) {
-        try {
-          let start = lastEncounter.period?.start ? new Date(lastEncounter.period.start) : null;
-          let end   = lastEncounter.period?.end   ? new Date(lastEncounter.period.end)   : null;
-          if (!start && !end) { end = new Date(); start = daysAgo(7); }
-          else { if (start && !end) end = new Date(); if (!start && end) start = new Date(end.getTime() - 7*24*60*60*1000); }
+      /* ----- Observations (last encounter, time-filtered & sorted) ----- */
+      let obsWindow = null, observationsRows = [];
+      if (lastEncounter?.id) {
+        try {
+          let start = lastEncounter.period?.start ? new Date(lastEncounter.period.start) : null;
+          let end   = lastEncounter.period?.end   ? new Date(lastEncounter.period.end)   : null;
+          if (!start && !end) { end = new Date(); start = daysAgo(7); }
+          else { if (start && !end) end = new Date(); if (!start && end) start = new Date(end.getTime() - 7*24*60*60*1000); }
 
-          obsWindow = {start, end};
+          obsWindow = {start, end};
 
-          const params = new URLSearchParams({
-            patient: String(patientId), encounter: String(lastEncounter.id),
-            _count: '50', _sort: '-date'
-          });
-          if (start) params.append('date', `ge${toIso(start)}`);
-          if (end)   params.append('date', `le${toIso(end)}`);
+          const params = new URLSearchParams({
+            patient: String(patientId), encounter: String(lastEncounter.id),
+            _count: '50', _sort: '-date'
+          });
+          if (start) params.append('date', `ge${toIso(start)}`);
+          if (end)   params.append('date', `le${toIso(end)}`);
 
-          const url = `Observation?${params.toString()}`;
-          const r = await client.request(url);
+          const url = `Observation?${params.toString()}`;
+          const r = await client.request(url);
 
-          observationsRows = (r.entry || []).map(e => e.resource).map(o => {
-            const value = (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : null)
-                       || o.valueString || "";
-            return {
-              id: o.id,
-              name: o.code?.coding?.[0]?.display || o.code?.text || "",
-              value,
-              when: o.effectiveDateTime || o.issued || o.meta?.lastUpdated || "",
-              loinc: (o.code?.coding||[]).find(c=>c.system==="http://loinc.org")?.code || ""
-            };
-    	     });
+          observationsRows = (r.entry || []).map(e => e.resource).map(o => {
+            const value = (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : null)
+                        || o.valueString || "";
+            return {
+              id: o.id,
+              name: o.code?.coding?.[0]?.display || o.code?.text || "",
+              value,
+              when: o.effectiveDateTime || o.issued || o.meta?.lastUpdated || "",
+              loinc: (o.code?.coding||[]).find(c=>c.system==="http://loinc.org")?.code || ""
+            };
+          });
 
-          const c = card("Observations (Last Encounter)","📈","span-7");
-          c.appendChild(tbl(
-            [
-              {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
-              {key:"name",label:"Observation"},
-              {key:"value",label:"Value"},
-              {key:"when",label:"When",render:r=>d(r.when)}
-            ],
-            observationsRows
-          ));
-  	       const hint = document.createElement("div");
-          hint.className = "empty";
-          hint.textContent = `Window: ${obsWindow.start ? obsWindow.start.toLocaleString() : "—"} → ${obsWindow.end ? obsWindow.end.toLocaleString() : "—"}`;
-          c.appendChild(hint);
-        } catch (e) {
-          const c = card("Observations (Last Encounter)","📈","span-7");
-          c.appendChild(kv([["Error", e.message]]));
-        }
-      }
+          const c = card("Observations (Last Encounter)","📈","span-7");
+          c.appendChild(tbl(
+            [
+              {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+              {key:"name",label:"Observation"},
+              {key:"value",label:"Value"},
+              {key:"when",label:"When",render:r=>d(r.when)}
+            ],
+            observationsRows
+          ));
+          const hint = document.createElement("div");
+          hint.className = "empty";
+          hint.textContent = `Window: ${obsWindow.start ? obsWindow.start.toLocaleString() : "—"} → ${obsWindow.end ? obsWindow.end.toLocaleString() : "—"}`;
+          c.appendChild(hint);
+        } catch (e) {
+          const c = card("Observations (Last Encounter)","📈","span-7");
+          c.appendChild(kv([["Error", e.message]]));
+        }
+      }
 
-      /* ----- Vitals (Sparkline visualizations from recent data) ----- */
-      // Try to build nice visuals using last-encounter observations; if missing, fetch by code
-      const vitals = [
-        { key:"hr",   name:"Heart Rate",         loinc:["8867-4"], unitHint:"bpm" },
-        { key:"sbp",  name:"Systolic BP",        loinc:["8480-6"], unitHint:"mmHg" },
-  	     { key:"dbp",  name:"Diastolic BP",       loinc:["8462-4"], unitHint:"mmHg" },
-        { key:"temp", name:"Body Temperature",   loinc:["8310-5"], unitHint:"°C/°F" },
-        { key:"spo2", name:"O₂ Saturation",      loinc:["59408-5","2708-6"], unitHint:"%" },
-      ];
+      /* ----- Vitals (Sparkline visualizations from recent data) ----- */
+      // Try to build nice visuals using last-encounter observations; if missing, fetch by code
+      const vitals = [
+        { key:"hr",   name:"Heart Rate",         loinc:["8867-4"], unitHint:"bpm" },
+        { key:"sbp",  name:"Systolic BP",        loinc:["8480-6"], unitHint:"mmHg" },
+        { key:"dbp",  name:"Diastolic BP",       loinc:["8462-4"], unitHint:"mmHg" },
+        { key:"temp", name:"Body Temperature",   loinc:["8310-5"], unitHint:"°C/°F" },
+        { key:"spo2", name:"O₂ Saturation",      loinc:["59408-5","2708-6"], unitHint:"%" },
+      ];
 
-      function extractFromRows(codeList){
-        const rows = (observationsRows||[]).filter(r=>codeList.includes(r.loinc));
-        // newest first already; reverse for left→right time
-        const labels = rows.slice().reverse().map(r=>new Date(r.when).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
-        const values = rows.slice().reverse().map(r=>{
-          const m = /(-?\d+(\.\d+)?)/.exec(r.value||""); return m? Number(m[1]) : null;
-  	     }).filter(v => v!==null);
-        const latest = rows.length ? rows[0].value : null;
-        return {labels, values, latest};
-      }
+      function extractFromRows(codeList){
+        const rows = (observationsRows||[]).filter(r=>codeList.includes(r.loinc));
+        // newest first already; reverse for left→right time
+        const labels = rows.slice().reverse().map(r=>new Date(r.when).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+        const values = rows.slice().reverse().map(r=>{
+          const m = /(-?\d+(\.\d+)?)/.exec(r.value||""); return m? Number(m[1]) : null;
+        }).filter(v => v!==null);
+        const latest = rows.length ? rows[0].value : null;
+        return {labels, values, latest};
+      }
 
-      async function fetchByLoinc(loincCodes){
-        // last 30 observations for any of the codes
-        const codeQP = loincCodes.map(c=>`code=http://loinc.org|${c}`).join("&");
-        const r = await client.request(`Observation?patient=${patientId}&${codeQP}&_sort=-date&_count=30`);
-        const items = (r.entry||[]).map(e=>e.resource);
-        return items.map(o=>({
-          when: o.effectiveDateTime || o.issued || "",
-          value: (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : (o.valueString || "")),
-        }));
-      }
+      async function fetchByLoinc(loincCodes){
+        // last 30 observations for any of the codes
+        const codeQP = loincCodes.map(c=>`code=http://loinc.org|${c}`).join("&");
+        const r = await client.request(`Observation?patient=${patientId}&${codeQP}&_sort=-date&_count=30`);
+        const items = (r.entry||[]).map(e=>e.resource);
+        return items.map(o=>({
+          when: o.effectiveDateTime || o.issued || "",
+          value: (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : (o.valueString || "")),
+        }));
+      }
 
-      const vitalsCard = card("Vitals (Trends)","💠","span-5");
-      const gridBox = document.createElement('div');
-      gridBox.className = 'vital-grid';
-      vitalsCard.appendChild(gridBox);
+      const vitalsCard = card("Vitals (Trends)","💠","span-5");
+      const gridBox = document.createElement('div');
+      gridBox.className = 'vital-grid';
+      vitalsCard.appendChild(gridBox);
 
-      for (const v of vitals){
-        let {labels, values, latest} = extractFromRows(v.loinc);
+      for (const v of vitals){
+        let {labels, values, latest} = extractFromRows(v.loinc);
 
-        // If encounter-filtered data was too thin, try patient-wide recent
-        if ((!values || values.length<2)) {
-          try {
-            const items = await fetchByLoinc(v.loinc);
-            const rev = items.slice().reverse();
-            labels = rev.map(x=>new Date(x.when).toLocaleDateString());
-            values = rev.map(x=>{
-              const m = /(-?\d+(\.\d+)?)/.exec(x.value||""); return m? Number(m[1]) : null;
-            }).filter(x=>x!==null);
-            latest = items[0]?.value || latest;
-          } catch {}
-        }
+        // If encounter-filtered data was too thin, try patient-wide recent
+        if ((!values || values.length<2)) {
+          try {
+            const items = await fetchByLoinc(v.loinc);
+            const rev = items.slice().reverse();
+            labels = rev.map(x=>new Date(x.when).toLocaleDateString());
+            values = rev.map(x=>{
+              const m = /(-?\d+(\.\d+)?)/.exec(x.value||""); return m? Number(m[1]) : null;
+            }).filter(x=>x!==null);
+            latest = items[0]?.value || latest;
+          } catch {}
+        }
 
-        const box = document.createElement('div'); box.className='vital';
-        box.innerHTML = `
-          <div class="v-label">
-            <div class="v-name">${v.name}</div>
-            <div class="v-now">${latest ? latest : "<span class='muted'>—</span>"}</div>
-          </div>
-          <div class="v-meta">${v.unitHint}</div>
-          <canvas></canvas>
-        `;
-      	 gridBox.appendChild(box);
+        const box = document.createElement('div'); box.className='vital';
+        box.innerHTML = `
+          <div class="v-label">
+            <div class="v-name">${v.name}</div>
+            <div class="v-now">${latest ? latest : "<span class='muted'>—</span>"}</div>
+          </div>
+          <div class="v-meta">${v.unitHint}</div>
+          <canvas></canvas>
+        `;
+        gridBox.appendChild(box);
 
-        const ctx = box.querySelector('canvas');
-        if (values && values.length >= 2) {
-          // We have a trend, draw it
-          sparkline(ctx, labels, values);
-        } else if (values && values.length === 1) {
-          // Only one point, draw a flat line at that value
-          sparkline(ctx, [labels[0] || "", ""], [values[0], values[0]]);
-        }
-        // If no values, we do nothing, leaving the canvas clean.
-      }
+        const ctx = box.querySelector('canvas');
+        if (values && values.length >= 2) {
+          // We have a trend, draw it
+          sparkline(ctx, labels, values);
+        } else if (values && values.length === 1) {
+          // Only one point, draw a flat line at that value
+          sparkline(ctx, [labels[0] || "", ""], [values[0], values[0]]);
+        }
+        // If no values, we do nothing, leaving the canvas clean.
+      }
 
-      /* ----- Coverage ----- */
-      try{
-        const r = await client.request(`Coverage?patient=${patientId}&_count=5`);
-        const rows = (r.entry||[]).map(e=>e.resource).map(c=>({
-          id:c.id, status:c.status||"", payor:(c.payor||[]).map(p=>p.display||p.reference).join(", ")
-        }));
-        const c = card("Coverage","🛡️","span-6");
-        c.appendChild(tbl(
-          [
-            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
-            {key:"status",label:"Status"},
-            {key:"payor",label:"Payor"}
-          ],
-          rows
-  	     ));
-      }catch{}
-    })();
-  </script>
+      /* ----- Coverage ----- */
+      try{
+        const r = await client.request(`Coverage?patient=${patientId}&_count=5`);
+        const rows = (r.entry||[]).map(e=>e.resource).map(c=>({
+          id:c.id, status:c.status||"", payor:(c.payor||[]).map(p=>p.display||p.reference).join(", ")
+        }));
+        const c = card("Coverage","🛡️","span-6");
+        c.appendChild(tbl(
+          [
+            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+            {key:"status",label:"Status"},
+            {key:"payor",label:"Payor"}
+          ],
+          rows
+        ));
+      }catch{}
+    })();
+  </script>
 </body>
 </html>
