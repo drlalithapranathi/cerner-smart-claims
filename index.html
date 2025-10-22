@@ -31,6 +31,18 @@
       out.appendChild(d);
     };
 
+    // Utility: fetch all pages (Bundle navigation)
+    async function fetchAll(client, firstUrl, maxPages = 10) {
+      let url = firstUrl, pages = 0, entries = [];
+      while (url && pages < maxPages) {
+        const bundle = await client.request(url, { flat: false });
+        entries.push(...(bundle.entry || []));
+        url = (bundle.link || []).find(l => l.relation === "next")?.url || null;
+        pages++;
+      }
+      return entries;
+    }
+
     (async () => {
       try {
         const client = await FHIR.oauth2.ready(); // completes code+PKCE exchange
@@ -117,7 +129,82 @@
           }
         }
 
-        // Get radiology orders (ServiceRequest)
+        // ========= BILLING: ChargeItems for the CURRENT patient =========
+        if (patientId) {
+          try {
+            const bundle = await client.request(
+              `ChargeItem?patient=${patientId}&_elements=id,code,subject,effectiveTime&_count=50`
+            );
+            const items = (bundle.entry || []).map(e => e.resource);
+
+            if (!items.length) {
+              add("warn", "Billing (ChargeItem)", { message: "No ChargeItems found for this patient." });
+            } else {
+              const rows = items.map(ci => {
+                const codings = (ci.code?.coding || []).map(c => ({
+                  system: c.system,
+                  code: c.code,
+                  display: c.display
+                }));
+                return {
+                  id: ci.id,
+                  when: ci.effectiveTime || ci.occurrenceDateTime || undefined,
+                  codes: codings.map(c =>
+                    `${c.display || c.code || "(code)"}${c.code ? " ["+c.code+"]" : ""}`
+                  )
+                };
+              });
+              add("ok", "Billing (ChargeItem) for this patient", rows);
+            }
+          } catch (e) {
+            add("warn", "ChargeItem fetch failed", { error: e.message });
+          }
+        }
+
+        // ========= OPTIONAL: Tenant-wide scan (who has ChargeItems) =========
+        // Requires server support for _include and typically user/* read scopes.
+        try {
+          const entries = await fetchAll(
+            client,
+            "ChargeItem?_include=ChargeItem:patient&_elements=id,subject,code&_count=50",
+            6 // up to 6 pages
+          );
+
+          const patientsById = new Map();
+          const byPatient = new Map();
+
+          for (const e of entries) {
+            const r = e.resource;
+            if (!r) continue;
+            if (r.resourceType === "Patient") {
+              patientsById.set(r.id, r);
+            } else if (r.resourceType === "ChargeItem") {
+              const pid = r.subject?.reference?.split("/")[1];
+              if (!pid) continue;
+              const codes = (r.code?.coding || []).map(cd =>
+                `${cd.display || cd.code || "(code)"}${cd.code ? " ["+cd.code+"]" : ""}`
+              );
+              if (!byPatient.has(pid)) byPatient.set(pid, new Set());
+              codes.forEach(c => byPatient.get(pid).add(c));
+            }
+          }
+
+          const result = [...byPatient.entries()].map(([pid, set]) => {
+            const p = patientsById.get(pid);
+            const name = ((p?.name?.[0]?.given || []).join(" ") + " " + (p?.name?.[0]?.family || "")).trim();
+            return { patient: `${name || "(Unnamed)"} (Patient/${pid})`, codes: [...set] };
+          }).sort((a,b) => a.patient.localeCompare(b.patient));
+
+          if (result.length) {
+            add("ok", "Patients in tenant with ChargeItems", result);
+          } else {
+            add("warn", "Patients in tenant with ChargeItems", { message: "None found or _include not supported." });
+          }
+        } catch (e) {
+          add("warn", "Tenant-wide ChargeItem scan failed", { error: e.message });
+        }
+
+        // ========= Radiology orders (ServiceRequest) =========
         if (patientId) {
           try {
             const radiologyOrders = await client.request(`ServiceRequest?patient=${patientId}&category=108252007&_count=20`);
@@ -179,7 +266,7 @@
           }
         }
 
-        // Get radiology reports (DiagnosticReport)
+        // ========= Radiology reports (DiagnosticReport) =========
         if (patientId) {
           try {
             const radiologyReports = await client.request(`DiagnosticReport?patient=${patientId}&category=394914008&_count=20`);
@@ -255,7 +342,7 @@
           }
         }
 
-        // Get observations from the last encounter (FIXED)
+        // ========= Observations from the last encounter =========
         if (lastEncounter) {
           try {
             const encounterObs = await client.request(`Observation?patient=${patientId}&encounter=${lastEncounter.id}&_count=50`);
@@ -282,7 +369,7 @@
           }
         }
 
-        // Clinical context (conditions & observations) — helpful for your UI
+        // ========= Clinical context (Conditions & recent Observations) =========
         if (patientId) {
           try {
             const cond = await client.request(`Condition?patient=${patientId}&_count=20`);
@@ -320,7 +407,7 @@
           }
         }
 
-        // Claims/Billing context (may or may not be populated in a given sandbox tenant)
+        // ========= Claims/Billing context endpoints (may be empty in sandbox) =========
         if (patientId) {
           const claimsEndpoints = [
             `Coverage?patient=${patientId}&_count=5`,
