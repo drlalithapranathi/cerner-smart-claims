@@ -116,7 +116,17 @@
     .v-name{font-weight:700}
     .v-now{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#111827}
     .v-meta{font-size:.8rem;color:var(--muted)}
-    canvas{width:100%; height:80px}
+    
+    /* --- THIS IS THE CSS FIX --- */
+    .chart-wrap {
+      height: 80px;
+      position: relative;
+    }
+    canvas {
+      width: 100%;
+    }
+    /* --- END OF FIX --- */
+
   </style>
 </head>
 <body>
@@ -483,17 +493,23 @@
         }
 
         const box = document.createElement('div'); box.className='vital';
+        
+        
         box.innerHTML = `
           <div class="v-label">
             <div class="v-name">${v.name}</div>
             <div class="v-now">${latest ? latest : "<span class='muted'>—</span>"}</div>
           </div>
           <div class="v-meta">${v.unitHint}</div>
-          <canvas></canvas>
+          <div class="chart-wrap">
+            <canvas></canvas>
+          </div>
         `;
+     
+
         gridBox.appendChild(box);
 
-        const ctx = box.querySelector('canvas');
+        const ctx = box.querySelector('canvas'); // This still works fine
         if (values && values.length >= 2) {
           // We have a trend, draw it
           sparkline(ctx, labels, values);
