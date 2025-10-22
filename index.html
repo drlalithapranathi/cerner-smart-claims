@@ -6,69 +6,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.min.js"></script>
 
-  <!-- ===== Clean, modern styles (no frameworks) ===== -->
   <style>
     :root{
-      --bg:#0b1020;
-      --panel:#121830;
-      --muted:#8891a7;
-      --text:#e6ecff;
-      --accent:#6aa7ff;
-      --ok:#00d68f;
-      --warn:#ffd166;
-      --err:#ff6b6b;
-      --chip:#1b2447;
-      --border:#1d2a4d;
+      --bg:#0c1020; --panel:#12183a; --muted:#9aa6bf; --text:#eaf0ff; --border:#1b2450;
+      --chip:#19224a; --ok:#00d68f; --warn:#ffd166; --err:#ff6b6b; --hdr:#0f1533; --accent:#6aa7ff;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{
-      margin:0; padding:24px;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background:linear-gradient(180deg,#0b1020 0%,#0b0f1b 100%);
-      color:var(--text);
-    }
-    header{
-      display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px;
-    }
-    .app-title{font-size:clamp(22px,2.3vw,30px); font-weight:800; letter-spacing:.2px}
-    .subtitle{color:var(--muted); font-size:.95rem}
-    .grid{
-      display:grid; gap:16px;
-      grid-template-columns: repeat(auto-fill,minmax(320px,1fr));
-    }
-    .card{
-      background:var(--panel); border:1px solid var(--border); border-radius:16px;
-      padding:16px; box-shadow:0 10px 24px rgba(0,0,0,.25);
-    }
-    .card h3{
-      margin:0 0 10px 0; font-size:1.05rem; font-weight:700; letter-spacing:.2px;
-      display:flex; align-items:center; gap:8px;
-    }
-    .badge{
-      display:inline-flex; align-items:center; gap:6px;
-      padding:2px 8px; border-radius:999px; font-size:.78rem; background:var(--chip); color:var(--muted);
-      border:1px solid var(--border);
-    }
-    .badge.ok{ color:#0fe1a4; }
-    .badge.warn{ color:#ffd166; }
-    .badge.err{ color:#ff8080; }
-    .kv{display:grid; grid-template-columns:140px 1fr; gap:8px 12px; font-size:.95rem}
-    .kv b{ color:#a9b5d9; font-weight:600 }
-    .table{
-      width:100%; border-collapse:collapse; font-size:.92rem; overflow:hidden; border-radius:12px; border:1px solid var(--border);
-    }
-    .table th, .table td{ text-align:left; padding:10px 12px; border-bottom:1px solid var(--border) }
-    .table th{ background:#101734; color:#b7c2e8; font-weight:700 }
-    .table tr:hover td{ background:#121c3f }
-    .chips{ display:flex; flex-wrap:wrap; gap:6px }
-    .chip{
-      background:var(--chip); color:#bcd0ff; border:1px solid var(--border);
-      padding:4px 8px; border-radius:999px; font-size:.8rem;
-    }
-    .mono{ font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; color:#bcd0ff }
-    .footer-note{ margin-top:16px; color:var(--muted); font-size:.85rem }
-    .hidden{ display:none }
+    body{margin:0;padding:20px;background:linear-gradient(180deg,#0b1020,#0b0f1b);color:var(--text);
+         font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+    .app-title{font-weight:800;letter-spacing:.2px;font-size:clamp(22px,2.4vw,30px)}
+    .subtitle{color:var(--muted);font-size:.95rem}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+           background:var(--chip);border:1px solid var(--border);font-size:.8rem;color:#c8d4ff}
+    .badge.ok{color:var(--ok)} .badge.warn{color:var(--warn)} .badge.err{color:var(--err)}
+    .grid{display:grid;gap:16px;grid-template-columns:repeat(12,1fr)}
+    @media (max-width:980px){.grid{grid-template-columns:repeat(6,1fr)}}
+    @media (max-width:640px){.grid{grid-template-columns:repeat(1,1fr)}}
+    .span-4{grid-column:span 4} .span-6{grid-column:span 6} .span-8{grid-column:span 8} .span-12{grid-column:span 12}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px 14px 6px;
+          box-shadow:0 10px 24px rgba(0,0,0,.25)}
+    .card h3{margin:0 0 10px;font-size:1rem;font-weight:800;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+    .kv{display:grid;grid-template-columns:140px 1fr;gap:8px 12px;font-size:.95rem}
+    .kv b{color:#bcd0ff;font-weight:700}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#cfe0ff}
+    .table-wrap{max-height:420px;overflow:auto;border-radius:12px;border:1px solid var(--border)}
+    table{width:100%;border-collapse:collapse;font-size:.92rem}
+    thead th{position:sticky;top:0;background:var(--hdr);color:#c8d4ff;text-align:left;border-bottom:1px solid var(--border);padding:10px 12px}
+    tbody td{padding:9px 12px;border-bottom:1px solid var(--border)}
+    tbody tr:hover td{background:#141f49}
+    .muted{color:var(--muted)}
+    .empty{padding:8px 0;color:var(--muted)}
   </style>
 </head>
 <body>
@@ -81,314 +51,263 @@
   </header>
 
   <div id="grid" class="grid"></div>
-  <div id="errors"></div>
 
   <script>
-    // ---------- tiny view helpers ----------
+    // ---------- small view helpers ----------
     const grid = document.getElementById("grid");
     const badges = document.getElementById("badges");
-    const statusLine = document.getElementById("status");
+    const statusEl = document.getElementById("status");
 
-    const addBadge = (text, type) => {
-      const span = document.createElement("span");
-      span.className = `badge ${type||""}`;
-      span.textContent = text;
-      badges.appendChild(span);
+    const addBadge = (text, type="")=>{
+      const b=document.createElement("span"); b.className=`badge ${type}`; b.textContent=text; badges.appendChild(b);
     };
-
-    const card = (title, icon, bodyNode) => {
-      const c = document.createElement("div");
-      c.className = "card";
-      c.innerHTML = `<h3>${icon||""} ${title}</h3>`;
-      c.appendChild(bodyNode);
-      grid.appendChild(c);
+    const card = (title, icon, span="span-4")=>{
+      const c=document.createElement("div"); c.className=`card ${span}`;
+      c.innerHTML=`<h3>${icon||""} ${title}</h3>`; grid.appendChild(c); return c;
     };
-
-    const kv = (pairs) => {
-      const wrap = document.createElement("div");
-      wrap.className = "kv";
-      for (const [k,v] of pairs) {
-        const kEl = document.createElement("b"); kEl.textContent = k;
-        const vEl = document.createElement("div"); vEl.innerHTML = v ?? "<span class='mono'>—</span>";
-        wrap.appendChild(kEl); wrap.appendChild(vEl);
-      }
-      return wrap;
+    const kv = pairs=>{
+      const wrap=document.createElement("div"); wrap.className="kv";
+      for(const [k,v] of pairs){const kEl=document.createElement("b");kEl.textContent=k;
+        const vEl=document.createElement("div"); vEl.innerHTML=v??"<span class='muted'>—</span>";
+        wrap.appendChild(kEl);wrap.appendChild(vEl);} return wrap;
     };
-
-    const table = (columns, rows) => {
-      const tbl = document.createElement("table"); tbl.className = "table";
-      const thead = document.createElement("thead");
-      thead.innerHTML = `<tr>${columns.map(c=>`<th>${c.label}</th>`).join("")}</tr>`;
-      const tbody = document.createElement("tbody");
+    const tbl = (columns, rows)=>{
+      if(!rows.length){const d=document.createElement("div"); d.className="empty"; d.textContent="No data"; return d;}
+      const wrap=document.createElement("div"); wrap.className="table-wrap";
+      const t=document.createElement("table"); const thead=document.createElement("thead"), tbody=document.createElement("tbody");
+      thead.innerHTML=`<tr>${columns.map(c=>`<th>${c.label}</th>`).join("")}</tr>`;
       rows.forEach(r=>{
-        const tr = document.createElement("tr");
-        tr.innerHTML = columns.map(c=>`<td>${(c.render?c.render(r):r[c.key]) ?? ""}</td>`).join("");
+        const tr=document.createElement("tr");
+        tr.innerHTML=columns.map(c=>`<td>${(c.render?c.render(r):r[c.key])??""}</td>`).join("");
         tbody.appendChild(tr);
       });
-      tbl.appendChild(thead); tbl.appendChild(tbody);
-      return tbl;
+      t.appendChild(thead); t.appendChild(tbody); wrap.appendChild(t); return wrap;
     };
+    const d = s => s ? new Date(s).toLocaleString() : "";
 
-    const fmtDate = s => (s ? new Date(s).toLocaleString() : "");
+    // show silent JS errors in a badge
+    window.addEventListener("error", e=>addBadge(`JS: ${e.message}`,"err"));
+    window.addEventListener("unhandledrejection", e=>addBadge(`Promise: ${(e.reason&& (e.reason.message||e.reason))||e}`,"err"));
 
-    // surface silent JS errors nicely
-    window.addEventListener("error", e => {
-      const el = document.createElement("div");
-      el.className = "card";
-      el.innerHTML = `<h3>⚠️ Runtime Error</h3><div class="mono">${e.message}</div>`;
-      document.body.appendChild(el);
-    });
-    window.addEventListener("unhandledrejection", e => {
-      const el = document.createElement("div");
-      el.className = "card";
-      el.innerHTML = `<h3>⚠️ Promise Rejection</h3><div class="mono">${(e.reason && (e.reason.message||e.reason))||e}</div>`;
-      document.body.appendChild(el);
-    });
-
-    // ---------- main ----------
     (async () => {
-      const client = await FHIR.oauth2.ready(); // completes OAuth code+PKCE exchange
-      statusLine.textContent = "Connected";
-
-      // connection info (compact)
+      const client = await FHIR.oauth2.ready();
+      statusEl.textContent = "Connected";
       const token = client.state?.tokenResponse || {};
-      addBadge("SMART OK", "ok");
-      addBadge(`scope: ${String(token.scope||"").split(" ").length} items`, "");
-      addBadge(`exp: ${Math.round((token.expires_in||0)/60)}m`, "");
+      addBadge("SMART OK","ok");
+      addBadge(`scope:${String(token.scope||"").split(" ").length}`,"");
+      addBadge(`exp:${Math.round((token.expires_in||0)/60)}m`,"");
 
-      // Capabilities
-      try {
+      // ----- Server info
+      try{
         const meta = await client.request("metadata");
-        const info = kv([
-          ["FHIR Version", `<span class="mono">${meta.fhirVersion||"?"}</span>`],
+        const c = card("Server Info","🛰️","span-4");
+        c.appendChild(kv([
+          ["FHIR Version", `<span class="mono">${meta.fhirVersion||"4.x"}</span>`],
           ["Server", `<span class="mono">${client.state?.serverUrl||""}</span>`],
-          ["Status", `<span class="mono">${meta.status||"unknown"}</span>`],
-        ]);
-        card("Server Info", "🛰️", info);
-      } catch { /* ignore */ }
+          ["Status", meta.status||"unknown"]
+        ]));
+      }catch{}
 
-      // Patient
+      // ----- Patient
       let patientId = client.patient?.id || null;
-      if (!patientId) {
-        try {
+      if(!patientId){
+        try{
           const b = await client.request("Patient?_count=1");
           patientId = b.entry?.[0]?.resource?.id || null;
-          addBadge("No launch context → using first Patient", "warn");
-        } catch (e) {
-          card("Patient", "👤", kv([["Error", e.message]]));
-          return;
-        }
+          addBadge("No launch context → using first patient","warn");
+        }catch(e){ addBadge("Patient lookup failed","err"); }
       }
 
-      if (patientId) {
-        try {
+      if(patientId){
+        try{
           const p = await client.request(`Patient/${patientId}`);
           const name = `${(p.name?.[0]?.given||[]).join(" ")} ${p.name?.[0]?.family||""}`.trim();
-          card("Patient", "👤", kv([
+          const c = card("Patient","👤","span-4");
+          c.appendChild(kv([
             ["ID", `<span class="mono">Patient/${p.id}</span>`],
             ["Name", name||"—"],
             ["DOB", p.birthDate||"—"],
             ["Gender", p.gender||"—"],
           ]));
-        } catch (e) {
-          card("Patient", "👤", kv([["Read failed", e.message]]));
-        }
+        }catch(e){ addBadge("Patient read failed","err"); }
       }
 
-      // Last Encounter
-      let lastEncounter = null;
-      try {
+      // ----- Last Encounter
+      let lastEncounter=null;
+      try{
         const encs = await client.request(`Encounter?patient=${patientId}&_sort=-date&_count=1`);
-        if (encs.entry?.length) {
+        if(encs.entry?.length){
           lastEncounter = encs.entry[0].resource;
-          card("Last Encounter", "🏥", kv([
+          const c = card("Last Encounter","🏥","span-4");
+          c.appendChild(kv([
             ["ID", `<span class="mono">Encounter/${lastEncounter.id}</span>`],
             ["Status", lastEncounter.status||"—"],
             ["Class", (lastEncounter.class?.display||lastEncounter.class?.code)||"—"],
             ["Type", (lastEncounter.type||[]).map(t=>t.coding?.[0]?.display||t.text).filter(Boolean).join(", ")||"—"],
-            ["Start", fmtDate(lastEncounter.period?.start) || "—"],
-            ["End", fmtDate(lastEncounter.period?.end) || "—"],
-            ["Location", (lastEncounter.location||[]).map(l=>l.location?.display).filter(Boolean).join(", ")||"—"],
+            ["Start", d(lastEncounter.period?.start)||"—"],
+            ["End", d(lastEncounter.period?.end)||"—"],
+            ["Location", (lastEncounter.location||[]).map(l=>l.location?.display).filter(Boolean).join(", ")||"—"]
           ]));
-        } else {
-          addBadge("No Encounters", "warn");
+        } else { addBadge("No encounters","warn"); }
+      }catch(e){ addBadge("Encounter query failed","err"); }
+
+      // ----- Billing (ChargeItem) — context first, then account
+      const billingCard = card("Billing (ChargeItem)","💳","span-6");
+      const showOutcome = oo => {
+        const text = (oo?.issue||[]).map(i=>i.details?.text||i.diagnostics||i.code).filter(Boolean).join(" · ");
+        billingCard.appendChild(kv([["Error", `<span class="mono">${text||"Request failed"}</span>`]]));
+      };
+
+      try{
+        let chargeItems = [], lastOutcome=null;
+
+        // 1) strict reference
+        if(lastEncounter?.id){
+          try{
+            const r = await client.request(`ChargeItem?context=Encounter/${lastEncounter.id}&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,{flat:false});
+            (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
+          }catch(e){ lastOutcome = e?.response; }
         }
-      } catch (e) {
-        card("Last Encounter", "🏥", kv([["Error", e.message]]));
-      }
 
-      // -------- Billing (ChargeItem) by context, fallback account --------
-      try {
-        let chargeItems = [];
-
-        // 1) by Encounter context (Cerner requires context/account/_id; not patient=)
-        if (lastEncounter?.id) {
-          const byEnc = await client.request(
-            `ChargeItem?context=Encounter/${lastEncounter.id}` +
-            `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`
-          );
-          chargeItems.push(...(byEnc.entry||[]).map(e=>e.resource));
+        // 2) bare id (some Cerner tenants accept context={id})
+        if(!chargeItems.length && lastEncounter?.id){
+          try{
+            const r = await client.request(`ChargeItem?context=${lastEncounter.id}&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,{flat:false});
+            (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
+          }catch(e){ lastOutcome = e?.response; }
         }
 
-        // 2) fallback: by Account(s) for patient
-        if (!chargeItems.length) {
-          try {
-            const accts = await client.request(`Account?patient=${patientId}&_elements=id,name,type,status&_count=10`);
+        // 3) fallback via Account
+        if(!chargeItems.length){
+          try{
+            const accts = await client.request(`Account?patient=${patientId}&_elements=id&_count=10`);
             const ids = (accts.entry||[]).map(e=>e.resource?.id).filter(Boolean);
-            for (const id of ids) {
-              const byAcct = await client.request(
-                `ChargeItem?account=Account/${id}` +
-                `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`
-              );
-              chargeItems.push(...(byAcct.entry||[]).map(e=>e.resource));
+            for(const id of ids){
+              const r = await client.request(`ChargeItem?account=Account/${id}&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,{flat:false});
+              (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
             }
-          } catch { /* no accounts present is OK */ }
+          }catch(e){ lastOutcome = e?.response; }
         }
 
-        const rows = chargeItems.map(ci => ({
-          id: ci.id,
-          when: ci.occurrenceDateTime || ci.effectiveTime || "",
-          codes: (ci.code?.coding||[]).map(c=>c.display||c.code).filter(Boolean).join(", "),
-          context: ci.context?.reference || "",
-          account: (ci.account||[]).map(a=>a.reference).join(", ")
-        }));
-
-        const body = rows.length
-          ? table(
+        if(chargeItems.length){
+          const rows = chargeItems.map(ci=>({
+            id: ci.id,
+            codes: (ci.code?.coding||[]).map(c=>c.display||c.code).filter(Boolean).join(", "),
+            when: ci.occurrenceDateTime || ci.effectiveTime || "",
+            context: ci.context?.reference || "",
+            account: (ci.account||[]).map(a=>a.reference).join(", ")
+          }));
+          billingCard.appendChild(
+            tbl(
               [
-                {key:"id", label:"ChargeItem", render:r=>`<span class="mono">${r.id}</span>`},
-                {key:"codes", label:"Code(s)"},
-                {key:"when", label:"Date/Time", render:r=>fmtDate(r.when)},
-                {key:"context", label:"Context"},
-                {key:"account", label:"Account"},
+                {key:"id",label:"ChargeItem",render:r=>`<span class="mono">${r.id}</span>`},
+                {key:"codes",label:"Code(s)"},
+                {key:"when",label:"When",render:r=>d(r.when)},
+                {key:"context",label:"Context"},
+                {key:"account",label:"Account"},
               ],
               rows
             )
-          : kv([["Info","No ChargeItems found via encounter or account."]]);
-
-        card("Billing (ChargeItem)", "💳", body);
-      } catch (e) {
-        card("Billing (ChargeItem)", "💳", kv([["Error", e.message]]));
-      }
-
-      // ServiceRequest (radiology-ish)
-      try {
-        const sr = await client.request(`ServiceRequest?patient=${patientId}&_count=20`);
-        const rows = (sr.entry||[]).map(e=>e.resource).map(r=>({
-          id:r.id,
-          status:r.status, intent:r.intent, priority:r.priority||"",
-          code:r.code?.coding?.[0]?.display||r.code?.text||"",
-          authoredOn: r.authoredOn||"",
-        }));
-        if (rows.length) {
-          card("Orders (ServiceRequest)", "📝", table(
-            [
-              {key:"id", label:"ID", render:r=>`<span class="mono">${r.id}</span>`},
-              {key:"code", label:"Order"},
-              {key:"status", label:"Status"},
-              {key:"intent", label:"Intent"},
-              {key:"priority", label:"Priority"},
-              {key:"authoredOn", label:"Authored", render:r=>fmtDate(r.authoredOn)}
-            ],
-            rows
-          ));
-        }
-      } catch {}
-
-      // DiagnosticReport
-      try {
-        const dr = await client.request(`DiagnosticReport?patient=${patientId}&_count=20`);
-        const rows = (dr.entry||[]).map(e=>e.resource).map(r=>({
-          id:r.id,
-          code:r.code?.coding?.[0]?.display||r.code?.text||"",
-          status:r.status||"",
-          issued:r.issued||r.effectiveDateTime||"",
-        }));
-        if (rows.length) {
-          card("Diagnostic Reports", "🧪", table(
-            [
-              {key:"id", label:"ID", render:r=>`<span class="mono">${r.id}</span>`},
-              {key:"code", label:"Report"},
-              {key:"status", label:"Status"},
-              {key:"issued", label:"When", render:r=>fmtDate(r.issued)}
-            ],
-            rows
-          ));
-        }
-      } catch {}
-
-      // Observations from last encounter (if any)
-      if (lastEncounter?.id) {
-        try {
-          const obs = await client.request(`Observation?patient=${patientId}&encounter=${lastEncounter.id}&_count=50`);
-          const rows = (obs.entry||[]).map(e=>e.resource).map(o=>{
-            const simple =
-              (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : null) ||
-              o.valueString ||
-              "";
-            return {
-              id:o.id,
-              code:o.code?.coding?.[0]?.display||o.code?.text||"",
-              value: simple,
-              time:o.effectiveDateTime||""
-            };
-          });
-          if (rows.length) {
-            card("Observations (Last Encounter)", "📈", table(
-              [
-                {key:"id", label:"ID", render:r=>`<span class="mono">${r.id}</span>`},
-                {key:"code", label:"Observation"},
-                {key:"value", label:"Value"},
-                {key:"time", label:"When", render:r=>fmtDate(r.time)}
-              ],
-              rows
-            ));
+          );
+        } else {
+          if(lastOutcome){ // attempt to display OperationOutcome text
+            try{
+              const oo = await lastOutcome.json();
+              showOutcome(oo);
+            }catch{
+              billingCard.appendChild(kv([["Info","No ChargeItems found via encounter or account."]]));
+            }
+          } else {
+            billingCard.appendChild(kv([["Info","No ChargeItems found via encounter or account."]]));
           }
-        } catch {}
+        }
+      }catch(e){
+        billingCard.appendChild(kv([["Error", e.message]]));
       }
 
-      // Conditions (quick context)
-      try {
-        const cond = await client.request(`Condition?patient=${patientId}&_count=20`);
-        const rows = (cond.entry||[]).map(e=>e.resource).map(c=>({
-          id:c.id,
-          name:c.code?.coding?.[0]?.display||c.code?.text||"",
-          status:c.clinicalStatus?.coding?.[0]?.display||""
+      // ----- Orders (ServiceRequest)
+      try{
+        const r = await client.request(`ServiceRequest?patient=${patientId}&_count=20`);
+        const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
+          id:x.id,
+          code:x.code?.coding?.[0]?.display||x.code?.text||"",
+          status:x.status||"",
+          intent:x.intent||"",
+          priority:x.priority||"",
+          authoredOn:x.authoredOn||""
         }));
-        if (rows.length) {
-          card("Conditions", "🏷️", table(
-            [
-              {key:"id", label:"ID", render:r=>`<span class="mono">${r.id}</span>`},
-              {key:"name", label:"Condition"},
-              {key:"status", label:"Status"}
-            ],
-            rows
-          ));
-        }
-      } catch {}
+        const c = card("Orders (ServiceRequest)","📝","span-6");
+        c.appendChild(tbl(
+          [
+            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+            {key:"code",label:"Order"},
+            {key:"status",label:"Status"},
+            {key:"intent",label:"Intent"},
+            {key:"priority",label:"Priority"},
+            {key:"authoredOn",label:"Authored",render:r=>d(r.authoredOn)}
+          ],
+          rows
+        ));
+      }catch{}
 
-      // Claims-ish (may be empty in sandbox)
-      try {
-        const cov = await client.request(`Coverage?patient=${patientId}&_count=5`);
-        const rows = (cov.entry||[]).map(e=>e.resource).map(c=>({
-          id:c.id,
-          status:c.status||"",
-          payor:(c.payor||[]).map(p=>p.display||p.reference).join(", ")
+      // ----- Diagnostic Reports
+      try{
+        const r = await client.request(`DiagnosticReport?patient=${patientId}&_count=20`);
+        const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
+          id:x.id, code:x.code?.coding?.[0]?.display||x.code?.text||"",
+          status:x.status||"", when:x.issued||x.effectiveDateTime||""
         }));
-        if (rows.length) {
-          card("Coverage", "🛡️", table(
+        const c = card("Diagnostic Reports","🧪","span-6");
+        c.appendChild(tbl(
+          [
+            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+            {key:"code",label:"Report"},
+            {key:"status",label:"Status"},
+            {key:"when",label:"When",render:r=>d(r.when)}
+          ],
+          rows
+        ));
+      }catch{}
+
+      // ----- Observations (last encounter)
+      if(lastEncounter?.id){
+        try{
+          const r = await client.request(`Observation?patient=${patientId}&encounter=${lastEncounter.id}&_count=50`);
+          const rows = (r.entry||[]).map(e=>e.resource).map(o=>{
+            const value = (o.valueQuantity? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : null) ||
+                          o.valueString || "";
+            return { id:o.id, name:o.code?.coding?.[0]?.display||o.code?.text||"", value, when:o.effectiveDateTime||"" };
+          });
+          const c = card("Observations (Last Encounter)","📈","span-6");
+          c.appendChild(tbl(
             [
-              {key:"id", label:"ID", render:r=>`<span class="mono">${r.id}</span>`},
-              {key:"status", label:"Status"},
-              {key:"payor", label:"Payor"}
+              {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+              {key:"name",label:"Observation"},
+              {key:"value",label:"Value"},
+              {key:"when",label:"When",render:r=>d(r.when)}
             ],
             rows
           ));
-        }
-      } catch {}
+        }catch{}
+      }
+
+      // ----- Coverage (often present even if claims aren’t)
+      try{
+        const r = await client.request(`Coverage?patient=${patientId}&_count=5`);
+        const rows = (r.entry||[]).map(e=>e.resource).map(c=>({
+          id:c.id, status:c.status||"", payor:(c.payor||[]).map(p=>p.display||p.reference).join(", ")
+        }));
+        const c = card("Coverage","🛡️","span-6");
+        c.appendChild(tbl(
+          [
+            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+            {key:"status",label:"Status"},
+            {key:"payor",label:"Payor"}
+          ],
+          rows
+        ));
+      }catch{}
     })();
   </script>
-
-  <div class="footer-note">Tip: this view summarizes data in friendly tables. Raw JSON is intentionally not shown.</div>
 </body>
 </html>
