@@ -31,18 +31,6 @@
       out.appendChild(d);
     };
 
-    // Utility: fetch all pages (Bundle navigation)
-    async function fetchAll(client, firstUrl, maxPages = 10) {
-      let url = firstUrl, pages = 0, entries = [];
-      while (url && pages < maxPages) {
-        const bundle = await client.request(url, { flat: false });
-        entries.push(...(bundle.entry || []));
-        url = (bundle.link || []).find(l => l.relation === "next")?.url || null;
-        pages++;
-      }
-      return entries;
-    }
-
     (async () => {
       try {
         const client = await FHIR.oauth2.ready(); // completes code+PKCE exchange
@@ -130,25 +118,56 @@
         }
 
         // ========= BILLING: ChargeItems for the CURRENT patient =========
+        // Cerner requires one of: _id, context (Encounter), or account — NOT patient=.
         if (patientId) {
           try {
-            const bundle = await client.request(
-              `ChargeItem?patient=${patientId}&_elements=id,code,subject,effectiveTime&_count=50`
-            );
-            const items = (bundle.entry || []).map(e => e.resource);
+            let items = [];
+
+            // 1) Try Encounter context first (most precise)
+            if (lastEncounter?.id) {
+              const byEncounter = await client.request(
+                `ChargeItem?context=Encounter/${lastEncounter.id}` +
+                `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`
+              );
+              items.push(...(byEncounter.entry || []).map(e => e.resource));
+            }
+
+            // 2) If nothing yet, try by Account(s) for this patient
+            if (items.length === 0) {
+              try {
+                const accts = await client.request(
+                  `Account?patient=${patientId}&_elements=id,name,type,status&_count=10`
+                );
+                const acctIds = (accts.entry || [])
+                  .map(e => e.resource?.id)
+                  .filter(Boolean);
+
+                for (const id of acctIds) {
+                  const byAcct = await client.request(
+                    `ChargeItem?account=Account/${id}` +
+                    `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`
+                  );
+                  items.push(...(byAcct.entry || []).map(e => e.resource));
+                }
+              } catch {
+                // No accounts or endpoint not populated — ignore.
+              }
+            }
 
             if (!items.length) {
-              add("warn", "Billing (ChargeItem)", { message: "No ChargeItems found for this patient." });
+              add("warn", "Billing (ChargeItem)", {
+                message: "No ChargeItems found via encounter or account for this patient."
+              });
             } else {
               const rows = items.map(ci => {
                 const codings = (ci.code?.coding || []).map(c => ({
-                  system: c.system,
-                  code: c.code,
-                  display: c.display
+                  system: c.system, code: c.code, display: c.display
                 }));
                 return {
                   id: ci.id,
-                  when: ci.effectiveTime || ci.occurrenceDateTime || undefined,
+                  when: ci.occurrenceDateTime || ci.effectiveTime || undefined,
+                  context: ci.context?.reference,
+                  account: (ci.account || []).map(a => a.reference),
                   codes: codings.map(c =>
                     `${c.display || c.code || "(code)"}${c.code ? " ["+c.code+"]" : ""}`
                   )
@@ -159,49 +178,6 @@
           } catch (e) {
             add("warn", "ChargeItem fetch failed", { error: e.message });
           }
-        }
-
-        // ========= OPTIONAL: Tenant-wide scan (who has ChargeItems) =========
-        // Requires server support for _include and typically user/* read scopes.
-        try {
-          const entries = await fetchAll(
-            client,
-            "ChargeItem?_include=ChargeItem:patient&_elements=id,subject,code&_count=50",
-            6 // up to 6 pages
-          );
-
-          const patientsById = new Map();
-          const byPatient = new Map();
-
-          for (const e of entries) {
-            const r = e.resource;
-            if (!r) continue;
-            if (r.resourceType === "Patient") {
-              patientsById.set(r.id, r);
-            } else if (r.resourceType === "ChargeItem") {
-              const pid = r.subject?.reference?.split("/")[1];
-              if (!pid) continue;
-              const codes = (r.code?.coding || []).map(cd =>
-                `${cd.display || cd.code || "(code)"}${cd.code ? " ["+cd.code+"]" : ""}`
-              );
-              if (!byPatient.has(pid)) byPatient.set(pid, new Set());
-              codes.forEach(c => byPatient.get(pid).add(c));
-            }
-          }
-
-          const result = [...byPatient.entries()].map(([pid, set]) => {
-            const p = patientsById.get(pid);
-            const name = ((p?.name?.[0]?.given || []).join(" ") + " " + (p?.name?.[0]?.family || "")).trim();
-            return { patient: `${name || "(Unnamed)"} (Patient/${pid})`, codes: [...set] };
-          }).sort((a,b) => a.patient.localeCompare(b.patient));
-
-          if (result.length) {
-            add("ok", "Patients in tenant with ChargeItems", result);
-          } else {
-            add("warn", "Patients in tenant with ChargeItems", { message: "None found or _include not supported." });
-          }
-        } catch (e) {
-          add("warn", "Tenant-wide ChargeItem scan failed", { error: e.message });
         }
 
         // ========= Radiology orders (ServiceRequest) =========
@@ -229,7 +205,7 @@
             add("warn", "Radiology orders fetch failed", { error: e.message });
           }
 
-          // Also try without category filter in case the specific SNOMED code isn't used
+          // Also try without category filter
           try {
             const allServiceRequests = await client.request(`ServiceRequest?patient=${patientId}&_count=20`);
             const radiologyLikeOrders = allServiceRequests.entry?.filter(e => {
@@ -256,7 +232,7 @@
                 bodySite: sr.bodySite?.map(bs => bs.coding?.[0]?.display || bs.text) || [],
                 note: sr.note?.map(n => n.text) || []
               };
-            }) || [];
+            }) || []);
             
             if (radiologyLikeOrders.length > 0) {
               add("radiology", "All Service Requests (Imaging-related filtered)", radiologyLikeOrders);
@@ -332,7 +308,7 @@
                   creation: pf.creation
                 })) || []
               };
-            }) || [];
+            }) || []);
             
             if (radiologyLikeReports.length > 0) {
               add("radiology", "All Diagnostic Reports (Imaging-related filtered)", radiologyLikeReports);
@@ -407,7 +383,7 @@
           }
         }
 
-        // ========= Claims/Billing context endpoints (may be empty in sandbox) =========
+        // ========= Claims/Billing context (often empty in sandbox) =========
         if (patientId) {
           const claimsEndpoints = [
             `Coverage?patient=${patientId}&_count=5`,
