@@ -8,7 +8,6 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root{
-      /* Light vibrant theme */
       --bg1:#f7fbff;
       --bg2:#eef4ff;
       --panel:rgba(255,255,255,0.88);
@@ -65,7 +64,6 @@
       transform: translateZ(0);
       overflow:hidden;
     }
-    /* soft corner sheen */
     .card::after{
       content:"";
       position:absolute; inset:-1px -1px auto auto;
@@ -91,7 +89,6 @@
     .empty{padding:8px 0;color:var(--muted)}
     a.link{color:var(--accent); text-decoration:none}
     a.link:hover{text-decoration:underline}
-    /* vitals cards */
     .vital-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
     @media (max-width:980px){.vital-grid{grid-template-columns:repeat(2,1fr)}}
     @media (max-width:540px){.vital-grid{grid-template-columns:1fr}}
@@ -103,8 +100,6 @@
     .v-name{font-weight:700}
     .v-now{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color:#111827}
     .v-meta{font-size:.8rem;color:var(--muted)}
-    
-    /* Vitals chart container */
     .chart-wrap {
       height: 80px;
       position: relative;
@@ -114,6 +109,35 @@
       width: 100% !important;
       height: 80px !important;
       display: block;
+    }
+    .token-btn {
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      margin-left: 8px;
+      transition: all 0.2s;
+    }
+    .token-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    .token-box {
+      background: #1e1e1e;
+      color: #4ec9b0;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 11px;
+      word-break: break-all;
+      margin-top: 8px;
+      border: 1px solid #3e3e3e;
+      max-height: 80px;
+      overflow-y: auto;
     }
   </style>
 </head>
@@ -127,7 +151,6 @@
   </header>
   <div id="grid" class="grid"></div>
   <script>
-    // ---------- small view helpers ----------
     const grid = document.getElementById("grid");
     const badges = document.getElementById("badges");
     const statusEl = document.getElementById("status");
@@ -160,20 +183,16 @@
       t.appendChild(thead); t.appendChild(tbody); wrap.appendChild(t); return wrap;
     };
     const d = s => s ? new Date(s).toLocaleString() : "";
-    // show silent JS errors in a badge
     window.addEventListener("error", e=>addBadge(`JS: ${e.message}`,"err"));
     window.addEventListener("unhandledrejection", e=>addBadge(`Promise: ${(e.reason && (e.reason.message||e.reason))||e}`,"err"));
-    // ---- date helpers for observation window ----
     function toIso(dt) {
       const d = new Date(dt);
-      // normalize to Z without ms
       return new Date(d.getTime() - d.getTimezoneOffset()*60000)
         .toISOString().replace(/\.\d{3}Z$/, 'Z');
     }
     function daysAgo(n){
       const d = new Date(); d.setDate(d.getDate()-n); return d;
     }
-    // ---- charts helpers ----
     function sparkline(el, labels, values){
       return new Chart(el.getContext('2d'), {
         type: 'line',
@@ -193,7 +212,6 @@
       addBadge(`scope:${String(token.scope||"").split(" ").length}`,"");
       addBadge(`exp:${Math.round((token.expires_in||0)/60)}m`,"");
       
-      /* ----- Get Patient ID first ----- */
       let patientId = client.patient?.id || null;
       if(!patientId){
         try{
@@ -203,7 +221,6 @@
         }catch{ addBadge("Patient lookup failed","err"); }
       }
       
-      /* ----- Last Encounter (needed for vitals) ----- */
       let lastEncounter=null;
       try{
         const encs = await client.request(`Encounter?patient=${patientId}&_sort=-date&_count=1`);
@@ -212,7 +229,6 @@
         }
       }catch{}
       
-      /* ----- Observations (needed for vitals) ----- */
       let obsWindow = null, observationsRows = [];
       if (lastEncounter?.id) {
         try {
@@ -243,7 +259,28 @@
         } catch (e) {}
       }
       
-      /* ----- Vitals (Sparkline visualizations from recent data) - NOW FIRST! ----- */
+      const tokenCard = card("🔑 Access Token (for Postman)","🔐","span-12");
+      const accessToken = token.access_token || "No token available";
+      const expiresIn = token.expires_in || 0;
+      const expiresAt = new Date(Date.now() + expiresIn * 1000).toLocaleTimeString();
+      
+      const tokenContent = document.createElement("div");
+      tokenContent.innerHTML = `
+        <div style="margin-bottom: 10px;">
+          <b>Token expires in ${Math.round(expiresIn/60)} minutes</b> (at ${expiresAt})
+          <button class="token-btn" onclick="
+            navigator.clipboard.writeText('${accessToken}');
+            this.textContent='✅ Copied!';
+            setTimeout(()=>this.textContent='📋 Copy Token', 2000);
+          ">📋 Copy Token</button>
+        </div>
+        <div class="token-box">${accessToken}</div>
+        <div style="margin-top:10px; font-size:0.85em; color:var(--muted);">
+          Use this token in Postman: <code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;">Authorization: Bearer [token]</code>
+        </div>
+      `;
+      tokenCard.appendChild(tokenContent);
+      
       const vitals = [
         { key:"hr",   name:"Heart Rate",         loinc:["8867-4"], unitHint:"bpm" },
         { key:"sbp",  name:"Systolic BP",        loinc:["8480-6"], unitHint:"mmHg" },
@@ -306,7 +343,6 @@
         }
       }
       
-      /* ----- Server Info ----- */
       try{
         const meta = await client.request("metadata");
         const serverUrl = (client.state?.serverUrl || "").replace(/\/$/,"");
@@ -320,7 +356,6 @@
         addBadge("Server metadata failed","warn");
       }
       
-      /* ----- Patient ----- */
       if(patientId){
         try{
           const p = await client.request(`Patient/${patientId}`);
@@ -335,7 +370,6 @@
         }catch{ addBadge("Patient read failed","err"); }
       }
       
-      /* ----- Last Encounter ----- */
       if(lastEncounter){
         const c = card("Last Encounter","🏥","span-4");
         c.appendChild(kv([
@@ -351,7 +385,6 @@
         addBadge("No encounters","warn"); 
       }
       
-      /* ----- Observations (Last Encounter) ----- */
       if (observationsRows.length > 0) {
         const c = card("Observations (Last Encounter)","📈","span-7");
         c.appendChild(tbl(
@@ -371,7 +404,6 @@
         }
       }
       
-      /* ----- Billing (ChargeItem) ----- */
       const billingCard = card("Billing (ChargeItem)","💳","span-6");
       const showOutcome = oo => {
         const text = (oo?.issue||[]).map(i=>i.details?.text||i.diagnostics||i.code).filter(Boolean).join(" · ");
@@ -442,7 +474,6 @@
         billingCard.appendChild(kv([["Error", e.message]]));
       }
       
-      /* ----- Orders (ServiceRequest) ----- */
       try{
         const r = await client.request(`ServiceRequest?patient=${patientId}&_count=20`);
         const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
@@ -464,7 +495,6 @@
         ));
       }catch{}
       
-      /* ----- Diagnostic Reports ----- */
       try{
         const r = await client.request(`DiagnosticReport?patient=${patientId}&_count=20`);
         const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
@@ -483,7 +513,6 @@
         ));
       }catch{}
       
-      /* ----- Coverage ----- */
       try{
         const r = await client.request(`Coverage?patient=${patientId}&_count=5`);
         const rows = (r.entry||[]).map(e=>e.resource).map(c=>({
