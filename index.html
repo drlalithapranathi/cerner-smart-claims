@@ -186,319 +186,467 @@
       });
     }
     (async () => {
-      const client = await FHIR.oauth2.ready();
-      statusEl.textContent = "Connected";
-      const token = client.state?.tokenResponse || {};
-      addBadge("SMART OK","ok");
-      addBadge(`scope:${String(token.scope||"").split(" ").length}`,"");
-      addBadge(`exp:${Math.round((token.expires_in||0)/60)}m`,"");
-      
-      /* ----- Get Patient ID first ----- */
-      let patientId = client.patient?.id || null;
-      if(!patientId){
-        try{
-          const b = await client.request("Patient?_count=1");
-          patientId = b.entry?.[0]?.resource?.id || null;
-          addBadge("No launch context → using first patient","warn");
-        }catch{ addBadge("Patient lookup failed","err"); }
-      }
-      
-      /* ----- Last Encounter (needed for vitals) ----- */
-      let lastEncounter=null;
       try{
-        const encs = await client.request(`Encounter?patient=${patientId}&_sort=-date&_count=1`);
-        if(encs.entry?.length){
-          lastEncounter = encs.entry[0].resource;
-        }
-      }catch{}
-      
-      /* ----- Observations (needed for vitals) ----- */
-      let obsWindow = null, observationsRows = [];
-      if (lastEncounter?.id) {
-        try {
-          let start = lastEncounter.period?.start ? new Date(lastEncounter.period.start) : null;
-          let end   = lastEncounter.period?.end   ? new Date(lastEncounter.period.end)   : null;
-          if (!start && !end) { end = new Date(); start = daysAgo(7); }
-          else { if (start && !end) end = new Date(); if (!start && end) start = new Date(end.getTime() - 7*24*60*60*1000); }
-          obsWindow = {start, end};
-          const params = new URLSearchParams({
-            patient: String(patientId), encounter: String(lastEncounter.id),
-            _count: '50', _sort: '-date'
-          });
-          if (start) params.append('date', `ge${toIso(start)}`);
-          if (end)   params.append('date', `le${toIso(end)}`);
-          const url = `Observation?${params.toString()}`;
-          const r = await client.request(url);
-          observationsRows = (r.entry || []).map(e => e.resource).map(o => {
-            const value = (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : null)
-                        || o.valueString || "";
-            return {
-              id: o.id,
-              name: o.code?.coding?.[0]?.display || o.code?.text || "",
-              value,
-              when: o.effectiveDateTime || o.issued || o.meta?.lastUpdated || "",
-              loinc: (o.code?.coding||[]).find(c=>c.system==="http://loinc.org")?.code || ""
-            };
-          });
-        } catch (e) {}
-      }
-      
-      /* ----- Vitals (Sparkline visualizations from recent data) - NOW FIRST! ----- */
-      const vitals = [
-        { key:"hr",   name:"Heart Rate",         loinc:["8867-4"], unitHint:"bpm" },
-        { key:"sbp",  name:"Systolic BP",        loinc:["8480-6"], unitHint:"mmHg" },
-        { key:"dbp",  name:"Diastolic BP",       loinc:["8462-4"], unitHint:"mmHg" },
-        { key:"temp", name:"Body Temperature",   loinc:["8310-5"], unitHint:"°C/°F" },
-        { key:"spo2", name:"O₂ Saturation",      loinc:["59408-5","2708-6"], unitHint:"%" },
-      ];
-      function extractFromRows(codeList){
-        const rows = (observationsRows||[]).filter(r=>codeList.includes(r.loinc));
-        const labels = rows.slice().reverse().map(r=>new Date(r.when).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
-        const values = rows.slice().reverse().map(r=>{
-          const m = /(-?\d+(\.\d+)?)/.exec(r.value||""); return m? Number(m[1]) : null;
-        }).filter(v => v!==null);
-        const latest = rows.length ? rows[0].value : null;
-        return {labels, values, latest};
-      }
-      async function fetchByLoinc(loincCodes){
-        const codeQP = loincCodes.map(c=>`code=http://loinc.org|${c}`).join("&");
-        const r = await client.request(`Observation?patient=${patientId}&${codeQP}&_sort=-date&_count=30`);
-        const items = (r.entry||[]).map(e=>e.resource);
-        return items.map(o=>({
-          when: o.effectiveDateTime || o.issued || "",
-          value: (o.valueQuantity ? `${o.valueQuantity.value} ${o.valueQuantity.unit}` : (o.valueString || "")),
-        }));
-      }
-      const vitalsCard = card("Vitals (Trends)","💠","span-12");
-      const gridBox = document.createElement('div');
-      gridBox.className = 'vital-grid';
-      vitalsCard.appendChild(gridBox);
-      for (const v of vitals){
-        let {labels, values, latest} = extractFromRows(v.loinc);
-        if ((!values || values.length<2)) {
-          try {
-            const items = await fetchByLoinc(v.loinc);
-            const rev = items.slice().reverse();
-            labels = rev.map(x=>new Date(x.when).toLocaleDateString());
-            values = rev.map(x=>{
-              const m = /(-?\d+(\.\d+)?)/.exec(x.value||""); return m? Number(m[1]) : null;
-            }).filter(x=>x!==null);
-            latest = items[0]?.value || latest;
-          } catch {}
-        }
-        const box = document.createElement('div'); box.className='vital';
-        box.innerHTML = `
-          <div class="v-label">
-            <div class="v-name">${v.name}</div>
-            <div class="v-now">${latest ? latest : "<span class='muted'>—</span>"}</div>
-          </div>
-          <div class="v-meta">${v.unitHint}</div>
-          <div class="chart-wrap">
-            <canvas></canvas>
-          </div>
-        `;
-        gridBox.appendChild(box);
-        const ctx = box.querySelector('canvas');
-        if (values && values.length >= 2) {
-          sparkline(ctx, labels, values);
-        } else if (values && values.length === 1) {
-          sparkline(ctx, [labels[0] || "", ""], [values[0], values[0]]);
-        }
-      }
-      
-      /* ----- Server Info ----- */
-      try{
-        const meta = await client.request("metadata");
-        const serverUrl = (client.state?.serverUrl || "").replace(/\/$/,"");
-        const c = card("Server Info","🛰️","span-4");
-        c.appendChild(kv([
-          ["FHIR Version", `<span class="mono">${meta.fhirVersion || "4.x"}</span>`],
-          ["Server", serverUrl ? `<a href="${serverUrl}" target="_blank" rel="noopener" class="mono link">${serverUrl}</a>` : "—"],
-          ["Status", meta.status || "unknown"]
-        ]));
-      }catch{
-        addBadge("Server metadata failed","warn");
-      }
-      
-      /* ----- Patient ----- */
-      if(patientId){
+        statusEl.textContent = "Initializing SMART client…";
+        const client = await FHIR.oauth2.ready();
+        statusEl.textContent = "✓ Authorized";
+        addBadge("Connected","ok");
+        
+        const patientId = client.patient.id;
+        const userId = client.userId;
+        const serverUrl = client.state.serverUrl;
+        
+        /* ----- Gather basic data ----- */
+        let lastEncounter = null;
         try{
-          const p = await client.request(`Patient/${patientId}`);
-          const name = `${(p.name?.[0]?.given||[]).join(" ")} ${p.name?.[0]?.family||""}`.trim();
-          const c = card("Patient","👤","span-4");
+          const encs = await client.request(`Encounter?patient=${patientId}&_sort=-date&_count=1`);
+          if(encs.entry && encs.entry.length>0) lastEncounter = encs.entry[0].resource;
+        }catch{}
+        
+        /* ----- Vitals (with Window & Chart) ----- */
+        const vitalsMap = new Map();
+        let obsWindow = null;
+        let observationsRows = [];
+        
+        if(lastEncounter && lastEncounter.period && lastEncounter.period.start){
+          const encStart = new Date(lastEncounter.period.start);
+          const windowStart = new Date(encStart.getTime() - 24*60*60*1000);
+          const windowEnd = lastEncounter.period.end ? new Date(lastEncounter.period.end) : new Date();
+          obsWindow = { start: windowStart, end: windowEnd };
+          
+          try{
+            const searchParams = [
+              `patient=${patientId}`,
+              `date=ge${toIso(windowStart)}`,
+              `date=le${toIso(windowEnd)}`,
+              `_count=200`,
+              `_sort=-date`
+            ].join('&');
+            
+            const obsResp = await client.request(`Observation?${searchParams}`);
+            (obsResp.entry||[]).forEach(e=>{
+              const o = e.resource;
+              const name = o.code?.text || o.code?.coding?.[0]?.display || "Unknown";
+              const val = o.valueQuantity
+                ? `${o.valueQuantity.value} ${o.valueQuantity.unit||""}`
+                : (o.valueString || o.valueCodeableConcept?.text || "—");
+              observationsRows.push({
+                id: o.id,
+                name: name,
+                value: val,
+                when: o.effectiveDateTime||o.issued||""
+              });
+              
+              // collect for vitals
+              const code = o.code?.coding?.[0]?.code;
+              if(code && o.valueQuantity && o.valueQuantity.value!=null){
+                if(!vitalsMap.has(code)) vitalsMap.set(code, {name, unit:o.valueQuantity.unit, readings:[]});
+                vitalsMap.get(code).readings.push({
+                  date: new Date(o.effectiveDateTime||o.issued),
+                  value: o.valueQuantity.value
+                });
+              }
+            });
+          }catch{}
+        }
+        
+        // vitals card
+        if(vitalsMap.size>0){
+          const vCard = card("Vitals Trends","💓","span-5");
+          const vgrid = document.createElement("div"); vgrid.className="vital-grid"; vCard.appendChild(vgrid);
+          vitalsMap.forEach((v,code)=>{
+            v.readings.sort((a,b)=>a.date-b.date);
+            const latest = v.readings[v.readings.length-1];
+            const vDiv = document.createElement("div"); vDiv.className="vital";
+            const label = document.createElement("div"); label.className="v-label";
+            const vName = document.createElement("div"); vName.className="v-name"; vName.textContent=v.name;
+            const vNow = document.createElement("div"); vNow.className="v-now"; 
+            vNow.textContent=`${latest.value} ${v.unit||""}`;
+            label.appendChild(vName); label.appendChild(vNow); vDiv.appendChild(label);
+            const meta = document.createElement("div"); meta.className="v-meta";
+            meta.textContent=`${v.readings.length} reading(s)`;
+            vDiv.appendChild(meta);
+            
+            if(v.readings.length>1){
+              const chartWrap = document.createElement("div"); chartWrap.className="chart-wrap";
+              const canvas = document.createElement("canvas");
+              chartWrap.appendChild(canvas); vDiv.appendChild(chartWrap);
+              const labels = v.readings.map(r=>r.date.toLocaleDateString());
+              const values = v.readings.map(r=>r.value);
+              sparkline(canvas, labels, values);
+            }
+            vgrid.appendChild(vDiv);
+          });
+        }
+        
+        /* ----- Server Capabilities ----- */
+        try{
+          const meta = await client.request("metadata");
+          const impl = meta.implementation?.description || meta.software?.name || "—";
+          const c = card("Server Info","⚙️","span-4");
           c.appendChild(kv([
-            ["ID", `<span class="mono">Patient/${p.id}</span>`],
-            ["Name", name || "—"],
-            ["DOB", p.birthDate || "—"],
-            ["Gender", p.gender || "—"],
+            ["FHIR Server", `<span class="mono">${serverUrl}</span>`],
+            ["Software", impl],
+            ["FHIR Version", meta.fhirVersion || "—"],
           ]));
-        }catch{ addBadge("Patient read failed","err"); }
-      }
-      
-      /* ----- Last Encounter ----- */
-      if(lastEncounter){
-        const c = card("Last Encounter","🏥","span-4");
-        c.appendChild(kv([
-          ["ID", `<span class="mono">Encounter/${lastEncounter.id}</span>`],
-          ["Status", lastEncounter.status || "—"],
-          ["Class", (lastEncounter.class?.display||lastEncounter.class?.code) || "—"],
-          ["Type", (lastEncounter.type||[]).map(t=>t.coding?.[0]?.display||t.text).filter(Boolean).join(", ") || "—"],
-          ["Start", d(lastEncounter.period?.start) || "—"],
-          ["End", d(lastEncounter.period?.end) || "—"],
-          ["Location", (lastEncounter.location||[]).map(l=>l.location?.display).filter(Boolean).join(", ") || "—"]
-        ]));
-      } else { 
-        addBadge("No encounters","warn"); 
-      }
-      
-      /* ----- Observations (Last Encounter) ----- */
-      if (observationsRows.length > 0) {
-        const c = card("Observations (Last Encounter)","📈","span-7");
-        c.appendChild(tbl(
-          [
-            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
-            {key:"name",label:"Observation"},
-            {key:"value",label:"Value"},
-            {key:"when",label:"When",render:r=>d(r.when)}
-          ],
-          observationsRows
-        ));
-        if(obsWindow){
-          const hint = document.createElement("div");
-          hint.className = "empty";
-          hint.textContent = `Window: ${obsWindow.start ? obsWindow.start.toLocaleString() : "—"} → ${obsWindow.end ? obsWindow.end.toLocaleString() : "—"}`;
-          c.appendChild(hint);
+        }catch{
+          addBadge("Server metadata failed","warn");
         }
-      }
-      
-      /* ----- Billing (ChargeItem) ----- */
-      const billingCard = card("Billing (ChargeItem)","💳","span-6");
-      const showOutcome = oo => {
-        const text = (oo?.issue||[]).map(i=>i.details?.text||i.diagnostics||i.code).filter(Boolean).join(" · ");
-        billingCard.appendChild(kv([["Info", `<span class="mono">${text||"No ChargeItems found via encounter or account."}</span>`]]));
-      };
-      try{
-        let chargeItems = [], lastOutcome=null;
-        if(lastEncounter?.id){
+        
+        /* ----- Patient ----- */
+        if(patientId){
           try{
-            const r = await client.request(
-              `ChargeItem?context=Encounter/${lastEncounter.id}` +
-              `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
-              { flat:false }
-            );
-            (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
-          }catch(e){ lastOutcome = e?.response; }
+            const p = await client.request(`Patient/${patientId}`);
+            const name = `${(p.name?.[0]?.given||[]).join(" ")} ${p.name?.[0]?.family||""}`.trim();
+            const c = card("Patient","👤","span-4");
+            c.appendChild(kv([
+              ["ID", `<span class="mono">Patient/${p.id}</span>`],
+              ["Name", name || "—"],
+              ["DOB", p.birthDate || "—"],
+              ["Gender", p.gender || "—"],
+            ]));
+          }catch{ addBadge("Patient read failed","err"); }
         }
-        if(!chargeItems.length && lastEncounter?.id){
-          try{
-            const r = await client.request(
-              `ChargeItem?context=${lastEncounter.id}` +
-              `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
-              { flat:false }
-            );
-            (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
-          }catch(e){ lastOutcome = e?.response; }
+        
+        /* ----- Last Encounter ----- */
+        if(lastEncounter){
+          const c = card("Last Encounter","🏥","span-4");
+          c.appendChild(kv([
+            ["ID", `<span class="mono">Encounter/${lastEncounter.id}</span>`],
+            ["Status", lastEncounter.status || "—"],
+            ["Class", (lastEncounter.class?.display||lastEncounter.class?.code) || "—"],
+            ["Type", (lastEncounter.type||[]).map(t=>t.coding?.[0]?.display||t.text).filter(Boolean).join(", ") || "—"],
+            ["Start", d(lastEncounter.period?.start) || "—"],
+            ["End", d(lastEncounter.period?.end) || "—"],
+            ["Location", (lastEncounter.location||[]).map(l=>l.location?.display).filter(Boolean).join(", ") || "—"]
+          ]));
+        } else { 
+          addBadge("No encounters","warn"); 
         }
-        if(!chargeItems.length){
-          try{
-            const accts = await client.request(`Account?patient=${patientId}&_elements=id&_count=10`);
-            const ids = (accts.entry||[]).map(e=>e.resource?.id).filter(Boolean);
-            for(const id of ids){
+        
+        /* ----- Observations (Last Encounter) ----- */
+        if (observationsRows.length > 0) {
+          const c = card("Observations (Last Encounter)","📈","span-7");
+          c.appendChild(tbl(
+            [
+              {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+              {key:"name",label:"Observation"},
+              {key:"value",label:"Value"},
+              {key:"when",label:"When",render:r=>d(r.when)}
+            ],
+            observationsRows
+          ));
+          if(obsWindow){
+            const hint = document.createElement("div");
+            hint.className = "empty";
+            hint.textContent = `Window: ${obsWindow.start ? obsWindow.start.toLocaleString() : "—"} → ${obsWindow.end ? obsWindow.end.toLocaleString() : "—"}`;
+            c.appendChild(hint);
+          }
+        }
+        
+        /* ----- Billing (ChargeItem) ----- */
+        const billingCard = card("Billing (ChargeItem)","💳","span-6");
+        
+        // Function to create sample ChargeItems
+        async function createSampleChargeItems() {
+          if (!lastEncounter?.id) {
+            addBadge("No encounter for ChargeItem", "warn");
+            return false;
+          }
+
+          const sampleCharges = [
+            {
+              code: "99213",
+              display: "Office Visit - Established Patient",
+              system: "http://www.ama-assn.org/go/cpt",
+              price: 150.00
+            },
+            {
+              code: "80053",
+              display: "Comprehensive Metabolic Panel",
+              system: "http://www.ama-assn.org/go/cpt",
+              price: 45.00
+            },
+            {
+              code: "36415",
+              display: "Venipuncture",
+              system: "http://www.ama-assn.org/go/cpt",
+              price: 15.00
+            }
+          ];
+
+          let created = 0;
+          for (const charge of sampleCharges) {
+            const chargeItem = {
+              resourceType: "ChargeItem",
+              status: "billable",
+              subject: {
+                reference: `Patient/${patientId}`
+              },
+              context: {
+                reference: `Encounter/${lastEncounter.id}`
+              },
+              code: {
+                coding: [{
+                  system: charge.system,
+                  code: charge.code,
+                  display: charge.display
+                }]
+              },
+              occurrenceDateTime: new Date().toISOString(),
+              quantity: {
+                value: 1
+              },
+              priceOverride: {
+                value: charge.price,
+                currency: "USD"
+              },
+              identifier: [{
+                system: "https://smart-claims-demo",
+                value: `demo-${Date.now()}-${created}`
+              }]
+            };
+
+            try {
+              await client.create(chargeItem);
+              created++;
+            } catch (error) {
+              console.error(`Failed to create ${charge.display}:`, error);
+            }
+          }
+
+          return created > 0;
+        }
+
+        const showOutcome = oo => {
+          const text = (oo?.issue||[]).map(i=>i.details?.text||i.diagnostics||i.code).filter(Boolean).join(" · ");
+          const info = document.createElement("div");
+          info.className = "empty";
+          info.style.marginTop = "10px";
+          info.innerHTML = `<span class="mono">${text||"No ChargeItems found via encounter or account."}</span>`;
+          billingCard.appendChild(info);
+        };
+        
+        try{
+          let chargeItems = [], lastOutcome=null;
+          
+          // Try to fetch existing ChargeItems
+          if(lastEncounter?.id){
+            try{
               const r = await client.request(
-                `ChargeItem?account=Account/${id}` +
+                `ChargeItem?context=Encounter/${lastEncounter.id}` +
                 `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
                 { flat:false }
               );
               (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
+            }catch(e){ lastOutcome = e?.response; }
+          }
+          if(!chargeItems.length && lastEncounter?.id){
+            try{
+              const r = await client.request(
+                `ChargeItem?context=${lastEncounter.id}` +
+                `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
+                { flat:false }
+              );
+              (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
+            }catch(e){ lastOutcome = e?.response; }
+          }
+          if(!chargeItems.length){
+            try{
+              const accts = await client.request(`Account?patient=${patientId}&_elements=id&_count=10`);
+              const ids = (accts.entry||[]).map(e=>e.resource?.id).filter(Boolean);
+              for(const id of ids){
+                const r = await client.request(
+                  `ChargeItem?account=Account/${id}` +
+                  `&_elements=id,code,subject,context,account,occurrenceDateTime&_count=50`,
+                  { flat:false }
+                );
+                (r.entry||[]).forEach(e=>chargeItems.push(e.resource));
+              }
+            }catch(e){ lastOutcome = e?.response; }
+          }
+          
+          // Display ChargeItems if found
+          if(chargeItems.length){
+            const rows = chargeItems.map(ci=>({
+              id: ci.id,
+              codes: (ci.code?.coding||[]).map(c=>c.display||c.code).filter(Boolean).join(", "),
+              when: ci.occurrenceDateTime || ci.effectiveTime || "",
+              context: ci.context?.reference || "",
+              account: (ci.account||[]).map(a=>a.reference).join(", ")
+            }));
+            billingCard.appendChild(
+              tbl(
+                [
+                  {key:"id",label:"ChargeItem",render:r=>`<span class="mono">${r.id}</span>`},
+                  {key:"codes",label:"Code(s)"},
+                  {key:"when",label:"When",render:r=>d(r.when)},
+                  {key:"context",label:"Context"},
+                  {key:"account",label:"Account"},
+                ],
+                rows
+              )
+            );
+          } else {
+            // No ChargeItems found - show info and create button
+            if (lastOutcome) {
+              try { showOutcome(await lastOutcome.json()); } catch { showOutcome(null); }
+            } else {
+              showOutcome(null);
             }
-          }catch(e){ lastOutcome = e?.response; }
+            
+            // Add note about creating data
+            if (lastEncounter?.id) {
+              const note = document.createElement("div");
+              note.className = "empty";
+              note.style.marginTop = "10px";
+              note.style.padding = "12px";
+              note.style.background = "#f0f9ff";
+              note.style.border = "1px solid #bfdbfe";
+              note.style.borderRadius = "8px";
+              note.innerHTML = `
+                <strong style="color:#1e40af">💡 Tip:</strong> Since ChargeItem data doesn't exist in this sandbox, 
+                you can create sample billing data for testing purposes.
+              `;
+              billingCard.appendChild(note);
+              
+              // Add create button
+              const createBtn = document.createElement("button");
+              createBtn.textContent = "➕ Create Demo ChargeItems";
+              createBtn.style.cssText = `
+                margin-top: 12px;
+                padding: 10px 20px;
+                background: linear-gradient(90deg, var(--accent), var(--accent-2));
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-weight: 600;
+                font-size: 14px;
+                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+                transition: all 0.2s;
+              `;
+              createBtn.onmouseover = () => {
+                createBtn.style.transform = "translateY(-2px)";
+                createBtn.style.boxShadow = "0 6px 16px rgba(59, 130, 246, 0.4)";
+              };
+              createBtn.onmouseout = () => {
+                createBtn.style.transform = "translateY(0)";
+                createBtn.style.boxShadow = "0 4px 12px rgba(59, 130, 246, 0.3)";
+              };
+              createBtn.onclick = async () => {
+                createBtn.disabled = true;
+                createBtn.textContent = "⏳ Creating ChargeItems...";
+                createBtn.style.cursor = "wait";
+                
+                try {
+                  const success = await createSampleChargeItems();
+                  
+                  if (success) {
+                    createBtn.textContent = "✅ Created! Reloading...";
+                    createBtn.style.background = "linear-gradient(90deg, var(--ok), var(--ok))";
+                    addBadge("ChargeItems created", "ok");
+                    setTimeout(() => location.reload(), 1500);
+                  } else {
+                    createBtn.textContent = "❌ Creation Failed";
+                    createBtn.style.background = "linear-gradient(90deg, var(--err), var(--err))";
+                    addBadge("ChargeItem creation failed", "err");
+                    createBtn.disabled = false;
+                    createBtn.style.cursor = "pointer";
+                  }
+                } catch (error) {
+                  console.error("ChargeItem creation error:", error);
+                  createBtn.textContent = "❌ Error: " + error.message;
+                  createBtn.style.background = "linear-gradient(90deg, var(--err), var(--err))";
+                  addBadge("ChargeItem POST failed", "err");
+                  
+                  // Show error details
+                  const errDiv = document.createElement("div");
+                  errDiv.className = "empty";
+                  errDiv.style.marginTop = "10px";
+                  errDiv.style.padding = "10px";
+                  errDiv.style.background = "#fef2f2";
+                  errDiv.style.border = "1px solid #fecaca";
+                  errDiv.style.borderRadius = "6px";
+                  errDiv.style.color = "#991b1b";
+                  errDiv.innerHTML = `
+                    <strong>Error:</strong> ${error.message}<br>
+                    <small>This may mean POST ChargeItem is not supported in this sandbox.</small>
+                  `;
+                  billingCard.appendChild(errDiv);
+                  
+                  createBtn.disabled = false;
+                  createBtn.style.cursor = "pointer";
+                }
+              };
+              billingCard.appendChild(createBtn);
+            }
+          }
+        }catch(e){
+          billingCard.appendChild(kv([["Error", e.message]]));
         }
-        if(chargeItems.length){
-          const rows = chargeItems.map(ci=>({
-            id: ci.id,
-            codes: (ci.code?.coding||[]).map(c=>c.display||c.code).filter(Boolean).join(", "),
-            when: ci.occurrenceDateTime || ci.effectiveTime || "",
-            context: ci.context?.reference || "",
-            account: (ci.account||[]).map(a=>a.reference).join(", ")
+        
+        /* ----- Orders (ServiceRequest) ----- */
+        try{
+          const r = await client.request(`ServiceRequest?patient=${patientId}&_count=20`);
+          const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
+            id:x.id, code:x.code?.coding?.[0]?.display||x.code?.text||"",
+            status:x.status||"", intent:x.intent||"", priority:x.priority||"",
+            authoredOn:x.authoredOn||""
           }));
-          billingCard.appendChild(
-            tbl(
-              [
-                {key:"id",label:"ChargeItem",render:r=>`<span class="mono">${r.id}</span>`},
-                {key:"codes",label:"Code(s)"},
-                {key:"when",label:"When",render:r=>d(r.when)},
-                {key:"context",label:"Context"},
-                {key:"account",label:"Account"},
-              ],
-              rows
-            )
-          );
-        } else if (lastOutcome) {
-          try { showOutcome(await lastOutcome.json()); } catch { showOutcome(null); }
-        } else {
-          showOutcome(null);
-        }
-      }catch(e){
-        billingCard.appendChild(kv([["Error", e.message]]));
+          const c = card("Orders (ServiceRequest)","📝","span-6");
+          c.appendChild(tbl(
+            [
+              {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+              {key:"code",label:"Order"},
+              {key:"status",label:"Status"},
+              {key:"intent",label:"Intent"},
+              {key:"priority",label:"Priority"},
+              {key:"authoredOn",label:"Authored",render:r=>d(r.authoredOn)}
+            ],
+            rows
+          ));
+        }catch{}
+        
+        /* ----- Diagnostic Reports ----- */
+        try{
+          const r = await client.request(`DiagnosticReport?patient=${patientId}&_count=20`);
+          const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
+            id:x.id, code:x.code?.coding?.[0]?.display||x.code?.text||"",
+            status:x.status||"", when:x.issued||x.effectiveDateTime||""
+          }));
+          const c = card("Diagnostic Reports","🧪","span-6");
+          c.appendChild(tbl(
+            [
+              {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+              {key:"code",label:"Report"},
+              {key:"status",label:"Status"},
+              {key:"when",label:"When",render:r=>d(r.when)}
+            ],
+            rows
+          ));
+        }catch{}
+        
+        /* ----- Coverage ----- */
+        try{
+          const r = await client.request(`Coverage?patient=${patientId}&_count=5`);
+          const rows = (r.entry||[]).map(e=>e.resource).map(c=>({
+            id:c.id, status:c.status||"", payor:(c.payor||[]).map(p=>p.display||p.reference).join(", ")
+          }));
+          const c = card("Coverage","🛡️","span-6");
+          c.appendChild(tbl(
+            [
+              {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
+              {key:"status",label:"Status"},
+              {key:"payor",label:"Payor"}
+            ],
+            rows
+          ));
+        }catch{}
+      }catch(err){
+        statusEl.textContent = "❌ Initialization failed";
+        addBadge(err.message,"err");
       }
-      
-      /* ----- Orders (ServiceRequest) ----- */
-      try{
-        const r = await client.request(`ServiceRequest?patient=${patientId}&_count=20`);
-        const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
-          id:x.id, code:x.code?.coding?.[0]?.display||x.code?.text||"",
-          status:x.status||"", intent:x.intent||"", priority:x.priority||"",
-          authoredOn:x.authoredOn||""
-        }));
-        const c = card("Orders (ServiceRequest)","📝","span-6");
-        c.appendChild(tbl(
-          [
-            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
-            {key:"code",label:"Order"},
-            {key:"status",label:"Status"},
-            {key:"intent",label:"Intent"},
-            {key:"priority",label:"Priority"},
-            {key:"authoredOn",label:"Authored",render:r=>d(r.authoredOn)}
-          ],
-          rows
-        ));
-      }catch{}
-      
-      /* ----- Diagnostic Reports ----- */
-      try{
-        const r = await client.request(`DiagnosticReport?patient=${patientId}&_count=20`);
-        const rows = (r.entry||[]).map(e=>e.resource).map(x=>({
-          id:x.id, code:x.code?.coding?.[0]?.display||x.code?.text||"",
-          status:x.status||"", when:x.issued||x.effectiveDateTime||""
-        }));
-        const c = card("Diagnostic Reports","🧪","span-6");
-        c.appendChild(tbl(
-          [
-            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
-            {key:"code",label:"Report"},
-            {key:"status",label:"Status"},
-            {key:"when",label:"When",render:r=>d(r.when)}
-          ],
-          rows
-        ));
-      }catch{}
-      
-      /* ----- Coverage ----- */
-      try{
-        const r = await client.request(`Coverage?patient=${patientId}&_count=5`);
-        const rows = (r.entry||[]).map(e=>e.resource).map(c=>({
-          id:c.id, status:c.status||"", payor:(c.payor||[]).map(p=>p.display||p.reference).join(", ")
-        }));
-        const c = card("Coverage","🛡️","span-6");
-        c.appendChild(tbl(
-          [
-            {key:"id",label:"ID",render:r=>`<span class="mono">${r.id}</span>`},
-            {key:"status",label:"Status"},
-            {key:"payor",label:"Payor"}
-          ],
-          rows
-        ));
-      }catch{}
     })();
   </script>
 </body>
