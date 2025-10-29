@@ -206,10 +206,23 @@
     }
     (async () => {
       const client = await FHIR.oauth2.ready();
-alert(`Launch Patient ID: ${client.patient?.id || 'NULL - THIS IS THE PROBLEM!'}`);
-console.log("Full client object:", client);
-console.log("Patient from launch:", client.patient);
-console.log("Token response:", client.state.tokenResponse);
+
+console.log("=== FULL CLIENT OBJECT ===");
+console.log(client);
+
+console.log("=== PATIENT ID COMPARISON ===");
+console.log("client.patient.id:", client.patient?.id);
+console.log("token patient:", client.state?.tokenResponse?.patient);
+console.log("Are they the same?", client.patient?.id === client.state?.tokenResponse?.patient);
+
+console.log("=== TOKEN RESPONSE ===");
+console.log(client.state?.tokenResponse);
+
+alert(`
+Client Patient ID: ${client.patient?.id || 'NULL'}
+Token Patient ID: ${client.state?.tokenResponse?.patient || 'NULL'}
+Match: ${client.patient?.id === client.state?.tokenResponse?.patient}
+`);
 
 statusEl.textContent = "Connected";
       statusEl.textContent = "Connected";
