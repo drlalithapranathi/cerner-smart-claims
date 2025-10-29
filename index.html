@@ -378,6 +378,12 @@ statusEl.textContent = "Connected";
       if(patientId){
         try{
           const p = await client.request(`Patient/${patientId}`);
+              console.log("=== FETCHING PATIENT ===");
+    console.log("Using patientId:", patientId);
+    console.log("=== RAW PATIENT RESOURCE ===");
+    console.log(JSON.stringify(p, null, 2));
+    console.log("Patient gender from API:", p.gender);
+    console.log("Patient birthDate from API:", p.birthDate);
           const name = `${(p.name?.[0]?.given||[]).join(" ")} ${p.name?.[0]?.family||""}`.trim();
           const c = card("Patient","👤","span-4");
           c.appendChild(kv([
