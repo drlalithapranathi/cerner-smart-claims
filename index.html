@@ -206,6 +206,12 @@
     }
     (async () => {
       const client = await FHIR.oauth2.ready();
+alert(`Launch Patient ID: ${client.patient?.id || 'NULL - THIS IS THE PROBLEM!'}`);
+console.log("Full client object:", client);
+console.log("Patient from launch:", client.patient);
+console.log("Token response:", client.state.tokenResponse);
+
+statusEl.textContent = "Connected";
       statusEl.textContent = "Connected";
       const token = client.state?.tokenResponse || {};
       addBadge("SMART OK","ok");
